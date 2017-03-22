@@ -988,6 +988,7 @@ THREE.ColladaLoader = function () {
 
 						threejsNode.matrix.set.apply( threejsNode.matrix, elementsRowMajor );
 						threejsNode.matrix.decompose( threejsNode.position, threejsNode.quaternion, threejsNode.scale );
+						jointMap[jointIndex].position=value;
 					}
 
 				} else {
