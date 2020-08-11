@@ -1,11 +1,14 @@
+import { Geometry } from '../core/Geometry.js';
+import { BufferGeometry } from '../core/BufferGeometry.js';
+import { Float32BufferAttribute } from '../core/BufferAttribute.js';
+import { Vector3 } from '../math/Vector3.js';
+
 /**
- * @author zz85 / https://github.com/zz85
- *
  * Parametric Surfaces Geometry
- * based on the brilliant article by @prideout http://prideout.net/blog/?p=44
+ * based on the brilliant article by @prideout https://prideout.net/blog/old/blog/index.html@p=44.html
  */
 
-import { Geometry } from '../core/Geometry';
+// ParametricGeometry
 
 function ParametricGeometry( func, slices, stacks ) {
 
@@ -27,15 +30,7 @@ function ParametricGeometry( func, slices, stacks ) {
 ParametricGeometry.prototype = Object.create( Geometry.prototype );
 ParametricGeometry.prototype.constructor = ParametricGeometry;
 
-/**
- * @author Mugen87 / https://github.com/Mugen87
- *
- * Parametric Surfaces Geometry
- * based on the brilliant article by @prideout http://prideout.net/blog/?p=44
- */
-
-import { BufferGeometry } from '../core/BufferGeometry';
-import { Float32BufferAttribute } from '../core/BufferAttribute';
+// ParametricBufferGeometry
 
 function ParametricBufferGeometry( func, slices, stacks ) {
 
@@ -51,26 +46,75 @@ function ParametricBufferGeometry( func, slices, stacks ) {
 
 	// buffers
 
-	var indices = [];
-	var vertices = [];
-	var uvs = [];
+	const indices = [];
+	const vertices = [];
+	const normals = [];
+	const uvs = [];
 
-	var i, j;
+	const EPS = 0.00001;
 
-	// generate vertices and uvs
+	const normal = new Vector3();
 
-	var sliceCount = slices + 1;
+	const p0 = new Vector3(), p1 = new Vector3();
+	const pu = new Vector3(), pv = new Vector3();
 
-	for ( i = 0; i <= stacks; i ++ ) {
+	if ( func.length < 3 ) {
 
-		var v = i / stacks;
+		console.error( 'THREE.ParametricGeometry: Function must now modify a Vector3 as third parameter.' );
 
-		for ( j = 0; j <= slices; j ++ ) {
+	}
 
-			var u = j / slices;
+	// generate vertices, normals and uvs
 
-			var p = func( u, v );
-			vertices.push( p.x, p.y, p.z );
+	const sliceCount = slices + 1;
+
+	for ( let i = 0; i <= stacks; i ++ ) {
+
+		const v = i / stacks;
+
+		for ( let j = 0; j <= slices; j ++ ) {
+
+			const u = j / slices;
+
+			// vertex
+
+			func( u, v, p0 );
+			vertices.push( p0.x, p0.y, p0.z );
+
+			// normal
+
+			// approximate tangent vectors via finite differences
+
+			if ( u - EPS >= 0 ) {
+
+				func( u - EPS, v, p1 );
+				pu.subVectors( p0, p1 );
+
+			} else {
+
+				func( u + EPS, v, p1 );
+				pu.subVectors( p1, p0 );
+
+			}
+
+			if ( v - EPS >= 0 ) {
+
+				func( u, v - EPS, p1 );
+				pv.subVectors( p0, p1 );
+
+			} else {
+
+				func( u, v + EPS, p1 );
+				pv.subVectors( p1, p0 );
+
+			}
+
+			// cross product of tangent vectors returns surface normal
+
+			normal.crossVectors( pu, pv ).normalize();
+			normals.push( normal.x, normal.y, normal.z );
+
+			// uv
 
 			uvs.push( u, v );
 
@@ -80,14 +124,14 @@ function ParametricBufferGeometry( func, slices, stacks ) {
 
 	// generate indices
 
-	for ( i = 0; i < stacks; i ++ ) {
+	for ( let i = 0; i < stacks; i ++ ) {
 
-		for ( j = 0; j < slices; j ++ ) {
+		for ( let j = 0; j < slices; j ++ ) {
 
-			var a = i * sliceCount + j;
-			var b = i * sliceCount + j + 1;
-			var c = ( i + 1 ) * sliceCount + j + 1;
-			var d = ( i + 1 ) * sliceCount + j;
+			const a = i * sliceCount + j;
+			const b = i * sliceCount + j + 1;
+			const c = ( i + 1 ) * sliceCount + j + 1;
+			const d = ( i + 1 ) * sliceCount + j;
 
 			// faces one and two
 
@@ -101,16 +145,14 @@ function ParametricBufferGeometry( func, slices, stacks ) {
 	// build geometry
 
 	this.setIndex( indices );
-	this.addAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
-	this.addAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
-
-	// generate normals
-
-	this.computeVertexNormals();
+	this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+	this.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
+	this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
 
 }
 
 ParametricBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
 ParametricBufferGeometry.prototype.constructor = ParametricBufferGeometry;
+
 
 export { ParametricGeometry, ParametricBufferGeometry };

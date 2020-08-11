@@ -1,14 +1,9 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
-
-import { PerspectiveCamera } from './PerspectiveCamera';
+import { PerspectiveCamera } from './PerspectiveCamera.js';
 
 function ArrayCamera( array ) {
 
 	PerspectiveCamera.call( this );
 
-	this.enabled = false;
 	this.cameras = array || [];
 
 }

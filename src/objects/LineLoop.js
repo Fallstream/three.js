@@ -1,8 +1,4 @@
-import { Line } from './Line';
-
-/**
- * @author mgreter / http://github.com/mgreter
- */
+import { Line } from './Line.js';
 
 function LineLoop( geometry, material ) {
 

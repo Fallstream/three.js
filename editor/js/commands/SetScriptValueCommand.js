@@ -1,21 +1,16 @@
-/**
- * @author dforrer / https://github.com/dforrer
- * Developed as part of a project at University of Applied Sciences and Arts Northwestern Switzerland (www.fhnw.ch)
- */
+import { Command } from '../Command.js';
 
 /**
+ * @param editor Editor
  * @param object THREE.Object3D
  * @param script javascript object
  * @param attributeName string
  * @param newValue string, object
- * @param cursorPosition javascript object with format {line: 2, ch: 3}
- * @param scrollInfo javascript object with values {left, top, width, height, clientWidth, clientHeight}
  * @constructor
  */
+function SetScriptValueCommand( editor, object, script, attributeName, newValue ) {
 
-var SetScriptValueCommand = function ( object, script, attributeName, newValue, cursorPosition, scrollInfo ) {
-
-	Command.call( this );
+	Command.call( this, editor );
 
 	this.type = 'SetScriptValueCommand';
 	this.name = 'Set Script.' + attributeName;
@@ -27,10 +22,8 @@ var SetScriptValueCommand = function ( object, script, attributeName, newValue, 
 	this.attributeName = attributeName;
 	this.oldValue = ( script !== undefined ) ? script[ this.attributeName ] : undefined;
 	this.newValue = newValue;
-	this.cursorPosition = cursorPosition;
-	this.scrollInfo = scrollInfo;
 
-};
+}
 
 SetScriptValueCommand.prototype = {
 
@@ -39,7 +32,6 @@ SetScriptValueCommand.prototype = {
 		this.script[ this.attributeName ] = this.newValue;
 
 		this.editor.signals.scriptChanged.dispatch();
-		this.editor.signals.refreshScriptEditor.dispatch( this.object, this.script, this.cursorPosition, this.scrollInfo );
 
 	},
 
@@ -48,14 +40,11 @@ SetScriptValueCommand.prototype = {
 		this.script[ this.attributeName ] = this.oldValue;
 
 		this.editor.signals.scriptChanged.dispatch();
-		this.editor.signals.refreshScriptEditor.dispatch( this.object, this.script, this.cursorPosition, this.scrollInfo );
 
 	},
 
 	update: function ( cmd ) {
 
-		this.cursorPosition = cmd.cursorPosition;
-		this.scrollInfo = cmd.scrollInfo;
 		this.newValue = cmd.newValue;
 
 	},
@@ -69,8 +58,6 @@ SetScriptValueCommand.prototype = {
 		output.attributeName = this.attributeName;
 		output.oldValue = this.oldValue;
 		output.newValue = this.newValue;
-		output.cursorPosition = this.cursorPosition;
-		output.scrollInfo = this.scrollInfo;
 
 		return output;
 
@@ -85,9 +72,9 @@ SetScriptValueCommand.prototype = {
 		this.attributeName = json.attributeName;
 		this.object = this.editor.objectByUuid( json.objectUuid );
 		this.script = this.editor.scripts[ json.objectUuid ][ json.index ];
-		this.cursorPosition = json.cursorPosition;
-		this.scrollInfo = json.scrollInfo;
 
 	}
 
 };
+
+export { SetScriptValueCommand };

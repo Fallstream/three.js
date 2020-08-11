@@ -1,42 +1,37 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
 
 var APP = {
 
 	Player: function () {
 
-		var loader = new THREE.ObjectLoader();
-		var camera, scene, renderer;
+		var renderer = new THREE.WebGLRenderer( { antialias: true } );
+		renderer.setPixelRatio( window.devicePixelRatio );
+		renderer.outputEncoding = THREE.sRGBEncoding;
 
-		var controls, effect, cameraVR, isVR;
+		var loader = new THREE.ObjectLoader();
+		var camera, scene;
+
+		var vrButton = VRButton.createButton( renderer );
 
 		var events = {};
 
-		this.dom = document.createElement( 'div' );
+		var dom = document.createElement( 'div' );
+		dom.appendChild( renderer.domElement );
+
+		this.dom = dom;
 
 		this.width = 500;
 		this.height = 500;
 
 		this.load = function ( json ) {
 
-			isVR = json.project.vr;
+			var project = json.project;
 
-			renderer = new THREE.WebGLRenderer( { antialias: true } );
-			renderer.setClearColor( 0x000000 );
-			renderer.setPixelRatio( window.devicePixelRatio );
-
-			if ( json.project.gammaInput ) renderer.gammaInput = true;
-			if ( json.project.gammaOutput ) renderer.gammaOutput = true;
-
-			if ( json.project.shadows ) {
-
-				renderer.shadowMap.enabled = true;
-				// renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-			}
-
-			this.dom.appendChild( renderer.domElement );
+			if ( project.vr !== undefined ) renderer.xr.enabled = project.vr;
+			if ( project.shadows !== undefined ) renderer.shadowMap.enabled = project.shadows;
+			if ( project.shadowType !== undefined ) renderer.shadowMap.type = project.shadowType;
+			if ( project.toneMapping !== undefined ) renderer.toneMapping = project.toneMapping;
+			if ( project.toneMappingExposure !== undefined ) renderer.toneMappingExposure = project.toneMappingExposure;
+			if ( project.physicallyCorrectLights !== undefined ) renderer.physicallyCorrectLights = project.physicallyCorrectLights;
 
 			this.setScene( loader.parse( json.scene ) );
 			this.setCamera( loader.parse( json.camera ) );
@@ -116,29 +111,6 @@ var APP = {
 			camera.aspect = this.width / this.height;
 			camera.updateProjectionMatrix();
 
-			if ( isVR === true ) {
-
-				cameraVR = new THREE.PerspectiveCamera();
-				cameraVR.projectionMatrix = camera.projectionMatrix;
-				camera.add( cameraVR );
-
-				controls = new THREE.VRControls( cameraVR );
-				effect = new THREE.VREffect( renderer );
-
-				if ( WEBVR.isAvailable() === true ) {
-
-					this.dom.appendChild( WEBVR.getButton( effect ) );
-
-				}
-
-				if ( WEBVR.isLatestAvailable() === false ) {
-
-					this.dom.appendChild( WEBVR.getMessage() );
-
-				}
-
-			}
-
 		};
 
 		this.setScene = function ( value ) {
@@ -177,11 +149,11 @@ var APP = {
 
 		}
 
-		var prevTime, request;
+		var time, prevTime;
 
-		function animate( time ) {
+		function animate() {
 
-			request = requestAnimationFrame( animate );
+			time = performance.now();
 
 			try {
 
@@ -193,24 +165,17 @@ var APP = {
 
 			}
 
-			if ( isVR === true ) {
-
-				camera.updateMatrixWorld();
-
-				controls.update();
-				effect.render( scene, cameraVR );
-
-			} else {
-
-				renderer.render( scene, camera );
-
-			}
+			renderer.render( scene, camera );
 
 			prevTime = time;
 
 		}
 
 		this.play = function () {
+
+			if ( renderer.xr.enabled ) dom.append( vrButton );
+
+			prevTime = performance.now();
 
 			document.addEventListener( 'keydown', onDocumentKeyDown );
 			document.addEventListener( 'keyup', onDocumentKeyUp );
@@ -223,12 +188,13 @@ var APP = {
 
 			dispatch( events.start, arguments );
 
-			request = requestAnimationFrame( animate );
-			prevTime = performance.now();
+			renderer.setAnimationLoop( animate );
 
 		};
 
 		this.stop = function () {
+
+			if ( renderer.xr.enabled ) vrButton.remove();
 
 			document.removeEventListener( 'keydown', onDocumentKeyDown );
 			document.removeEventListener( 'keyup', onDocumentKeyUp );
@@ -241,23 +207,16 @@ var APP = {
 
 			dispatch( events.stop, arguments );
 
-			cancelAnimationFrame( request );
+			renderer.setAnimationLoop( null );
 
 		};
 
 		this.dispose = function () {
 
-			while ( this.dom.children.length ) {
-
-				this.dom.removeChild( this.dom.firstChild );
-
-			}
-
 			renderer.dispose();
 
 			camera = undefined;
 			scene = undefined;
-			renderer = undefined;
 
 		};
 
@@ -314,3 +273,5 @@ var APP = {
 	}
 
 };
+
+export { APP };

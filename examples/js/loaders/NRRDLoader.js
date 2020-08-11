@@ -1,11 +1,12 @@
+console.warn( "THREE.NRRDLoader: As part of the transition to ES6 Modules, the files in 'examples/js' were deprecated in May 2020 (r117) and will be deleted in December 2020 (r124). You can find more information about developing using ES6 Modules in https://threejs.org/docs/#manual/en/introduction/Installation." );
+
 THREE.NRRDLoader = function ( manager ) {
 
-	this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
-
+	THREE.Loader.call( this, manager );
 
 };
 
-THREE.NRRDLoader.prototype = {
+THREE.NRRDLoader.prototype = Object.assign( Object.create( THREE.Loader.prototype ), {
 
 	constructor: THREE.NRRDLoader,
 
@@ -14,10 +15,30 @@ THREE.NRRDLoader.prototype = {
 		var scope = this;
 
 		var loader = new THREE.FileLoader( scope.manager );
+		loader.setPath( scope.path );
 		loader.setResponseType( 'arraybuffer' );
+		loader.setRequestHeader( scope.requestHeader );
 		loader.load( url, function ( data ) {
 
-			onLoad( scope.parse( data ) );
+			try {
+
+				onLoad( scope.parse( data ) );
+
+			} catch ( e ) {
+
+				if ( onError ) {
+
+					onError( e );
+
+				} else {
+
+					console.error( e );
+
+				}
+
+				scope.manager.itemError( url );
+
+			}
 
 		}, onProgress, onError );
 
@@ -50,7 +71,7 @@ THREE.NRRDLoader.prototype = {
 
 			switch ( type ) {
 
-			// 1 byte data types
+				// 1 byte data types
 				case 'uchar':
 					break;
 				case 'schar':
@@ -91,7 +112,7 @@ THREE.NRRDLoader.prototype = {
 
 			// increase the data pointer in-place
 			var _bytes = new _array_type( _data.slice( _dataPointer,
-			_dataPointer += chunks * _chunkSize ) );
+				_dataPointer += chunks * _chunkSize ) );
 
 			// if required, flip the endianness of the bytes
 			if ( _nativeLittleEndian != _littleEndian ) {
@@ -165,16 +186,19 @@ THREE.NRRDLoader.prototype = {
 				}
 
 			}
+
 			if ( ! headerObject.isNrrd ) {
 
 				throw new Error( 'Not an NRRD file' );
 
 			}
+
 			if ( headerObject.encoding === 'bz2' || headerObject.encoding === 'bzip2' ) {
 
 				throw new Error( 'Bzip is not supported' );
 
 			}
+
 			if ( ! headerObject.vectors ) {
 
 				//if no space direction is set, let's use the identity
@@ -227,6 +251,7 @@ THREE.NRRDLoader.prototype = {
 				parsingFunction = parseFloat;
 
 			}
+
 			for ( var i = start; i < end; i ++ ) {
 
 				value = data[ i ];
@@ -243,17 +268,20 @@ THREE.NRRDLoader.prototype = {
 						resultIndex ++;
 
 					}
+
 					number = '';
 
 				}
 
 			}
+
 			if ( number !== '' ) {
 
 				result[ resultIndex ] = parsingFunction( number, base );
 				resultIndex ++;
 
 			}
+
 			return result;
 
 		}
@@ -277,6 +305,7 @@ THREE.NRRDLoader.prototype = {
 			}
 
 		}
+
 		// parse the header
 		parseHeader( _header );
 
@@ -285,7 +314,7 @@ THREE.NRRDLoader.prototype = {
 
 			// we need to decompress the datastream
 			// here we start the unzipping and get a typed Uint8Array back
-			var inflate = new Zlib.Gunzip( new Uint8Array( _data ) );
+			var inflate = new Zlib.Gunzip( new Uint8Array( _data ) ); // eslint-disable-line no-undef
 			_data = inflate.decompress();
 
 		} else if ( headerObject.encoding === 'ascii' || headerObject.encoding === 'text' || headerObject.encoding === 'txt' || headerObject.encoding === 'hex' ) {
@@ -306,6 +335,7 @@ THREE.NRRDLoader.prototype = {
 			_data = _copy;
 
 		}
+
 		// .. let's use the underlying array buffer
 		_data = _data.buffer;
 
@@ -330,11 +360,11 @@ THREE.NRRDLoader.prototype = {
 		volume.zLength = volume.dimensions[ 2 ];
 		// spacing
 		var spacingX = ( new THREE.Vector3( headerObject.vectors[ 0 ][ 0 ], headerObject.vectors[ 0 ][ 1 ],
-		headerObject.vectors[ 0 ][ 2 ] ) ).length();
+			headerObject.vectors[ 0 ][ 2 ] ) ).length();
 		var spacingY = ( new THREE.Vector3( headerObject.vectors[ 1 ][ 0 ], headerObject.vectors[ 1 ][ 1 ],
-		headerObject.vectors[ 1 ][ 2 ] ) ).length();
+			headerObject.vectors[ 1 ][ 2 ] ) ).length();
 		var spacingZ = ( new THREE.Vector3( headerObject.vectors[ 2 ][ 0 ], headerObject.vectors[ 2 ][ 1 ],
-		headerObject.vectors[ 2 ][ 2 ] ) ).length();
+			headerObject.vectors[ 2 ][ 2 ] ) ).length();
 		volume.spacing = [ spacingX, spacingY, spacingZ ];
 
 
@@ -359,26 +389,21 @@ THREE.NRRDLoader.prototype = {
 
 		if ( ! headerObject.vectors ) {
 
-			volume.matrix.set( _spaceX, 0, 0, 0,
-			0, _spaceY, 0, 0,
-			0, 0, _spaceZ, 0,
-			0, 0, 0, 1 );
+			volume.matrix.set(
+				_spaceX, 0, 0, 0,
+				0, _spaceY, 0, 0,
+				0, 0, _spaceZ, 0,
+				0, 0, 0, 1 );
 
 		} else {
 
 			var v = headerObject.vectors;
-			var origin = headerObject.space_origin;
 
-			if ( ! origin ) {
-
-				origin = [ 0, 0, 0 ];
-
-			}
-
-			volume.matrix.set( _spaceX * v[ 0 ][ 0 ], _spaceX * v[ 1 ][ 0 ], _spaceX * v[ 2 ][ 0 ], 0,
-			_spaceY * v[ 0 ][ 1 ], _spaceY * v[ 1 ][ 1 ], _spaceY * v[ 2 ][ 1 ], 0,
-			_spaceZ * v[ 0 ][ 2 ], _spaceZ * v[ 1 ][ 2 ], _spaceZ * v[ 2 ][ 2 ], 0,
-			0, 0, 0, 1 );
+			volume.matrix.set(
+				_spaceX * v[ 0 ][ 0 ], _spaceX * v[ 1 ][ 0 ], _spaceX * v[ 2 ][ 0 ], 0,
+				_spaceY * v[ 0 ][ 1 ], _spaceY * v[ 1 ][ 1 ], _spaceY * v[ 2 ][ 1 ], 0,
+				_spaceZ * v[ 0 ][ 2 ], _spaceZ * v[ 1 ][ 2 ], _spaceZ * v[ 2 ][ 2 ], 0,
+				0, 0, 0, 1 );
 
 		}
 
@@ -393,6 +418,7 @@ THREE.NRRDLoader.prototype = {
 			volume.lowerThreshold = min;
 
 		}
+
 		if ( volume.upperThreshold === Infinity ) {
 
 			volume.upperThreshold = max;
@@ -411,6 +437,7 @@ THREE.NRRDLoader.prototype = {
 			start = 0;
 
 		}
+
 		if ( end === undefined ) {
 
 			end = array.length;
@@ -515,12 +542,14 @@ THREE.NRRDLoader.prototype = {
 				var _i, _len, _ref, _results;
 				_ref = data.split( /\s+/ );
 				_results = [];
+
 				for ( _i = 0, _len = _ref.length; _i < _len; _i ++ ) {
 
 					i = _ref[ _i ];
 					_results.push( parseInt( i, 10 ) );
 
 				}
+
 				return _results;
 
 			} )();
@@ -547,6 +576,7 @@ THREE.NRRDLoader.prototype = {
 
 				var _i, _len, _results;
 				_results = [];
+
 				for ( _i = 0, _len = parts.length; _i < _len; _i ++ ) {
 
 					v = parts[ _i ];
@@ -555,17 +585,20 @@ THREE.NRRDLoader.prototype = {
 						var _j, _len2, _ref, _results2;
 						_ref = v.slice( 1, - 1 ).split( /,/ );
 						_results2 = [];
+
 						for ( _j = 0, _len2 = _ref.length; _j < _len2; _j ++ ) {
 
 							f = _ref[ _j ];
 							_results2.push( parseFloat( f ) );
 
 						}
+
 						return _results2;
 
 					} )() );
 
 				}
+
 				return _results;
 
 			} )();
@@ -586,6 +619,7 @@ THREE.NRRDLoader.prototype = {
 					_results.push( parseFloat( f ) );
 
 				}
+
 				return _results;
 
 			} )();
@@ -593,4 +627,4 @@ THREE.NRRDLoader.prototype = {
 		}
 	}
 
-};
+} );

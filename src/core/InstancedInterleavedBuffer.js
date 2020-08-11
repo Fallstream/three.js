@@ -1,8 +1,4 @@
-import { InterleavedBuffer } from './InterleavedBuffer';
-
-/**
- * @author benaadams / https://twitter.com/ben_a_adams
- */
+import { InterleavedBuffer } from './InterleavedBuffer.js';
 
 function InstancedInterleavedBuffer( array, stride, meshPerAttribute ) {
 
@@ -25,6 +21,27 @@ InstancedInterleavedBuffer.prototype = Object.assign( Object.create( Interleaved
 		this.meshPerAttribute = source.meshPerAttribute;
 
 		return this;
+
+	},
+
+	clone: function ( data ) {
+
+		const ib = InterleavedBuffer.prototype.clone.call( this, data );
+
+		ib.meshPerAttribute = this.meshPerAttribute;
+
+		return ib;
+
+	},
+
+	toJSON: function ( data ) {
+
+		const json = InterleavedBuffer.prototype.toJSON.call( this, data );
+
+		json.isInstancedInterleavedBuffer = true;
+		json.meshPerAttribute = this.meshPerAttribute;
+
+		return json;
 
 	}
 

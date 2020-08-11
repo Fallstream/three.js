@@ -1,47 +1,74 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import { UIPanel, UIRow, UISelect, UIText, UIInteger } from './libs/ui.js';
 
-Sidebar.Settings = function ( editor ) {
+import { SidebarSettingsViewport } from './Sidebar.Settings.Viewport.js';
+import { SidebarSettingsShortcuts } from './Sidebar.Settings.Shortcuts.js';
+
+function SidebarSettings( editor ) {
 
 	var config = editor.config;
-	var signals = editor.signals;
+	var strings = editor.strings;
 
-	var container = new UI.Panel();
+	var container = new UIPanel();
 	container.setBorderTop( '0' );
 	container.setPaddingTop( '20px' );
+	container.setPaddingBottom( '20px' );
 
-	// class
+	// language
 
 	var options = {
-		'css/light.css': 'light',
-		'css/dark.css': 'dark'
+		en: 'English',
+		fr: 'Français',
+		zh: '中文'
 	};
 
-	var themeRow = new UI.Row();
-	var theme = new UI.Select().setWidth( '150px' );
-	theme.setOptions( options );
+	var languageRow = new UIRow();
+	var language = new UISelect().setWidth( '150px' );
+	language.setOptions( options );
 
-	if ( config.getKey( 'theme' ) !== undefined ) {
+	if ( config.getKey( 'language' ) !== undefined ) {
 
-		theme.setValue( config.getKey( 'theme' ) );
+		language.setValue( config.getKey( 'language' ) );
 
 	}
 
-	theme.onChange( function () {
+	language.onChange( function () {
 
 		var value = this.getValue();
 
-		editor.setTheme( value );
-		editor.config.setKey( 'theme', value );
+		editor.config.setKey( 'language', value );
 
 	} );
 
-	themeRow.add( new UI.Text( 'Theme' ).setWidth( '90px' ) );
-	themeRow.add( theme );
+	languageRow.add( new UIText( strings.getKey( 'sidebar/settings/language' ) ).setWidth( '90px' ) );
+	languageRow.add( language );
 
-	container.add( themeRow );
+	container.add( languageRow );
+
+	// export precision
+
+	var exportPrecisionRow = new UIRow();
+	var exportPrecision = new UIInteger( config.getKey( 'exportPrecision' ) ).setRange( 2, Infinity );
+
+	exportPrecision.onChange( function () {
+
+		var value = this.getValue();
+
+		editor.config.setKey( 'exportPrecision', value );
+
+	} );
+
+	exportPrecisionRow.add( new UIText( strings.getKey( 'sidebar/settings/exportPrecision' ) ).setWidth( '90px' ) );
+	exportPrecisionRow.add( exportPrecision );
+
+	container.add( exportPrecisionRow );
+
+	//
+
+	container.add( new SidebarSettingsShortcuts( editor ) );
+	container.add( new SidebarSettingsViewport( editor ) );
 
 	return container;
 
-};
+}
+
+export { SidebarSettings };

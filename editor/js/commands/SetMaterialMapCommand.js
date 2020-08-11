@@ -1,43 +1,49 @@
-/**
- * @author dforrer / https://github.com/dforrer
- * Developed as part of a project at University of Applied Sciences and Arts Northwestern Switzerland (www.fhnw.ch)
- */
+
+import { Command } from '../Command.js';
+
+import * as THREE from '../../../build/three.module.js';
 
 /**
+ * @param editor Editor
  * @param object THREE.Object3D
  * @param mapName string
  * @param newMap THREE.Texture
  * @constructor
  */
+function SetMaterialMapCommand( editor, object, mapName, newMap, materialSlot ) {
 
-var SetMaterialMapCommand = function ( object, mapName, newMap ) {
+	Command.call( this, editor );
 
-	Command.call( this );
 	this.type = 'SetMaterialMapCommand';
 	this.name = 'Set Material.' + mapName;
 
 	this.object = object;
-	this.mapName = mapName;
-	this.oldMap = ( object !== undefined ) ? object.material[ mapName ] : undefined;
+	this.material = this.editor.getObjectMaterial( object, materialSlot );
+
+	this.oldMap = ( object !== undefined ) ? this.material[ mapName ] : undefined;
 	this.newMap = newMap;
 
-};
+	this.mapName = mapName;
+
+}
 
 SetMaterialMapCommand.prototype = {
 
 	execute: function () {
 
-		this.object.material[ this.mapName ] = this.newMap;
-		this.object.material.needsUpdate = true;
-		this.editor.signals.materialChanged.dispatch( this.object.material );
+		this.material[ this.mapName ] = this.newMap;
+		this.material.needsUpdate = true;
+
+		this.editor.signals.materialChanged.dispatch( this.material );
 
 	},
 
 	undo: function () {
 
-		this.object.material[ this.mapName ] = this.oldMap;
-		this.object.material.needsUpdate = true;
-		this.editor.signals.materialChanged.dispatch( this.object.material );
+		this.material[ this.mapName ] = this.oldMap;
+		this.material.needsUpdate = true;
+
+		this.editor.signals.materialChanged.dispatch( this.material );
 
 	},
 
@@ -54,7 +60,7 @@ SetMaterialMapCommand.prototype = {
 
 		// serializes a map (THREE.Texture)
 
-		function serializeMap ( map ) {
+		function serializeMap( map ) {
 
 			if ( map === null || map === undefined ) return null;
 
@@ -79,7 +85,7 @@ SetMaterialMapCommand.prototype = {
 		// extract data from the cache hash
 		// remove metadata on each item
 		// and return as array
-		function extractFromCache ( cache ) {
+		function extractFromCache( cache ) {
 
 			var values = [];
 			for ( var key in cache ) {
@@ -89,6 +95,7 @@ SetMaterialMapCommand.prototype = {
 				values.push( data );
 
 			}
+
 			return values;
 
 		}
@@ -104,18 +111,19 @@ SetMaterialMapCommand.prototype = {
 		this.oldMap = parseTexture( json.oldMap );
 		this.newMap = parseTexture( json.newMap );
 
-		function parseTexture ( json ) {
+		function parseTexture( json ) {
 
 			var map = null;
 			if ( json !== null ) {
 
 				var loader = new THREE.ObjectLoader();
 				var images = loader.parseImages( json.images );
-				var textures  = loader.parseTextures( [ json ], images );
+				var textures = loader.parseTextures( [ json ], images );
 				map = textures[ json.uuid ];
 				map.sourceFile = json.sourceFile;
 
 			}
+
 			return map;
 
 		}
@@ -123,3 +131,5 @@ SetMaterialMapCommand.prototype = {
 	}
 
 };
+
+export { SetMaterialMapCommand };
