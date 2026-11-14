@@ -4,102 +4,83 @@
 		<title>three.js webgl - lights - spot light</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<style>
-			body {
-				background-color: #000;
-				margin: 0px;
-				overflow: hidden;
-			}
-
-			#info {
-				position: absolute;
-				top: 0px; width: 100%;
-				color: #ffffff;
-				padding: 5px;
-				font-family: Monospace;
-				font-size: 13px;
-				text-align: center;
-			}
-
-			a {
-				color: #ff0080;
-				text-decoration: none;
-			}
-
-			a:hover {
-				color: #0080ff;
-			}
-		</style>
+		<meta property="og:title" content="three.js webgl - lights - spot light">
+		<meta property="og:type" content="website">
+		<meta property="og:url" content="https://threejs.org/examples/webgl_lights_spotlights.html">
+		<meta property="og:image" content="https://threejs.org/examples/screenshots/webgl_lights_spotlights.jpg">
+		<link type="text/css" rel="stylesheet" href="main.css">
 	</head>
 	<body>
 
 		<div id="info">
-			<a href="http://threejs.org" target="_blank">three.js</a> - This animates 3 Spot Lights - by <a href="http://master-domain.com" target="_blank">Master James</a><br />
-			Orbit Controls are available to navigate.<br />
-			Where the lights converge to make white light the shadows will appear as C M Y from light color pairing.
+			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> - SpotLights<br/>
+			by <a href="http://master-domain.com" target="_blank" rel="noopener">Master James</a>
 		</div>
 
-		<script src="../build/three.js"></script>
-		<script src="js/libs/dat.gui.min.js"></script>
-		<script src="js/libs/tween.min.js"></script>
-		<script src="js/controls/OrbitControls.js"></script>
-		<script src="js/Detector.js"></script>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "../build/three.module.js",
+					"three/addons/": "./jsm/"
+				}
+			}
+		</script>
 
-		<script>
+		<script type="module">
+			import * as THREE from 'three';
+			import TWEEN from 'three/addons/libs/tween.module.js';
+			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-			if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+			const renderer = new THREE.WebGLRenderer( { antialias: true } );
+			renderer.setPixelRatio( window.devicePixelRatio );
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			renderer.setAnimationLoop( animate );
 
-			var renderer = new THREE.WebGLRenderer();
+			const camera = new THREE.PerspectiveCamera( 35, window.innerWidth / window.innerHeight, 0.1, 100 );
 
-			var camera = new THREE.PerspectiveCamera( 35, window.innerWidth / window.innerHeight, 1, 2000 );
+			const controls = new OrbitControls( camera, renderer.domElement );
 
-			var controls = new THREE.OrbitControls( camera, renderer.domElement );
+			const scene = new THREE.Scene();
 
-			var scene = new THREE.Scene();
+			const matFloor = new THREE.MeshPhongMaterial( { color: 0x808080 } );
+			const matBox = new THREE.MeshPhongMaterial( { color: 0xaaaaaa } );
 
-			var matFloor = new THREE.MeshPhongMaterial();
-			var matBox = new THREE.MeshPhongMaterial( { color: 0xaaaaaa } );
+			const geoFloor = new THREE.PlaneGeometry( 100, 100 );
+			const geoBox = new THREE.BoxGeometry( 0.3, 0.1, 0.2 );
 
-			var geoFloor = new THREE.BoxGeometry( 2000, 1, 2000 );
-			var geoBox = new THREE.BoxGeometry( 3, 1, 2 );
+			const mshFloor = new THREE.Mesh( geoFloor, matFloor );
+			mshFloor.rotation.x = - Math.PI * 0.5;
+			const mshBox = new THREE.Mesh( geoBox, matBox );
 
-			var mshFloor = new THREE.Mesh( geoFloor, matFloor );
-			var mshBox = new THREE.Mesh( geoBox, matBox );
+			const ambient = new THREE.AmbientLight( 0x444444 );
 
-			var ambient = new THREE.AmbientLight( 0x111111 );
+			const spotLight1 = createSpotlight( 0xFF7F00 );
+			const spotLight2 = createSpotlight( 0x00FF7F );
+			const spotLight3 = createSpotlight( 0x7F00FF );
 
-			var spotLight1 = createSpotlight( 0xFF7F00 );
-			var spotLight2 = createSpotlight( 0x00FF7F );
-			var spotLight3 = createSpotlight( 0x7F00FF );
-
-			var lightHelper1, lightHelper2, lightHelper3;
+			let lightHelper1, lightHelper2, lightHelper3;
 
 			function init() {
 
 				renderer.shadowMap.enabled = true;
-				renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+				renderer.shadowMap.type = THREE.PCFShadowMap;
 
-				renderer.gammaInput = true;
-				renderer.gammaOutput = true;
+				camera.position.set( 4.6, 2.2, - 2.1 );
 
-				camera.position.set( 46, 22, - 21 );
-
-				spotLight1.position.set( 15, 40, 45 );
-				spotLight2.position.set( 0, 40, 35 );
-				spotLight3.position.set( - 15, 40, 45 );
+				spotLight1.position.set( 1.5, 4, 4.5 );
+				spotLight2.position.set( 0, 4, 3.5 );
+				spotLight3.position.set( - 1.5, 4, 4.5 );
 
 				lightHelper1 = new THREE.SpotLightHelper( spotLight1 );
 				lightHelper2 = new THREE.SpotLightHelper( spotLight2 );
 				lightHelper3 = new THREE.SpotLightHelper( spotLight3 );
-
-				matFloor.color.set( 0x808080 );
 
 				mshFloor.receiveShadow = true;
 				mshFloor.position.set( 0, - 0.05, 0 );
 
 				mshBox.castShadow = true;
 				mshBox.receiveShadow = true;
-				mshBox.position.set( 0, 5, 0 );
+				mshBox.position.set( 0, 0.5, 0 );
 
 				scene.add( mshFloor );
 				scene.add( mshBox );
@@ -108,18 +89,19 @@
 				scene.add( lightHelper1, lightHelper2, lightHelper3 );
 
 				document.body.appendChild( renderer.domElement );
-				onResize();
-				window.addEventListener( 'resize', onResize, false );
+				window.addEventListener( 'resize', onWindowResize );
 
-				controls.target.set( 0, 7, 0 );
+				controls.target.set( 0, 0.5, 0 );
 				controls.maxPolarAngle = Math.PI / 2;
+				controls.minDistance = 1;
+				controls.maxDistance = 10;
 				controls.update();
 
 			}
 
 			function createSpotlight( color ) {
 
-				var newObj = new THREE.SpotLight( color, 2 );
+				const newObj = new THREE.SpotLight( color, 10 );
 
 				newObj.castShadow = true;
 				newObj.angle = 0.3;
@@ -127,14 +109,11 @@
 				newObj.decay = 2;
 				newObj.distance = 50;
 
-				newObj.shadow.mapSize.width = 1024;
-				newObj.shadow.mapSize.height = 1024;
-
 				return newObj;
 
 			}
 
-			function onResize() {
+			function onWindowResize() {
 
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
@@ -148,28 +127,28 @@
 					angle: ( Math.random() * 0.7 ) + 0.1,
 					penumbra: Math.random() + 1
 				}, Math.random() * 3000 + 2000 )
-				.easing( TWEEN.Easing.Quadratic.Out ).start();
+					.easing( TWEEN.Easing.Quadratic.Out ).start();
 
 				new TWEEN.Tween( light.position ).to( {
-					x: ( Math.random() * 30 ) - 15,
-					y: ( Math.random() * 10 ) + 15,
-					z: ( Math.random() * 30 ) - 15
+					x: ( Math.random() * 3 ) - 1.5,
+					y: ( Math.random() * 1 ) + 1.5,
+					z: ( Math.random() * 3 ) - 1.5
 				}, Math.random() * 3000 + 2000 )
-				.easing( TWEEN.Easing.Quadratic.Out ).start();
+					.easing( TWEEN.Easing.Quadratic.Out ).start();
 
 			}
 
-			function animate() {
+			function updateTweens() {
 
 				tween( spotLight1 );
 				tween( spotLight2 );
 				tween( spotLight3 );
 
-				setTimeout( animate, 5000 );
+				setTimeout( updateTweens, 5000 );
 
 			}
 
-			function render() {
+			function animate() {
 
 				TWEEN.update();
 
@@ -179,13 +158,10 @@
 
 				renderer.render( scene, camera );
 
-				requestAnimationFrame( render );
-
 			}
 
 			init();
-			render();
-			animate();
+			updateTweens();
 
 		</script>
 	</body>

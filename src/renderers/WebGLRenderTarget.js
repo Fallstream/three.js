@@ -1,94 +1,34 @@
-import { EventDispatcher } from '../core/EventDispatcher';
-import { Texture } from '../textures/Texture';
-import { LinearFilter } from '../constants';
-import { Vector4 } from '../math/Vector4';
-import { _Math } from '../math/Math';
+import { RenderTarget } from '../core/RenderTarget.js';
 
 /**
- * @author szimek / https://github.com/szimek/
- * @author alteredq / http://alteredqualia.com/
- * @author Marius Kintel / https://github.com/kintel
+ * A render target used in context of {@link WebGLRenderer}.
+ *
+ * @augments RenderTarget
  */
+class WebGLRenderTarget extends RenderTarget {
 
-/*
- In options, we can specify:
- * Texture parameters for an auto-generated target texture
- * depthBuffer/stencilBuffer: Booleans to indicate if we should generate these buffers
-*/
-function WebGLRenderTarget( width, height, options ) {
+	/**
+	 * Constructs a new 3D render target.
+	 *
+	 * @param {number} [width=1] - The width of the render target.
+	 * @param {number} [height=1] - The height of the render target.
+	 * @param {RenderTarget~Options} [options] - The configuration object.
+	 */
+	constructor( width = 1, height = 1, options = {} ) {
 
-	this.uuid = _Math.generateUUID();
+		super( width, height, options );
 
-	this.width = width;
-	this.height = height;
-
-	this.scissor = new Vector4( 0, 0, width, height );
-	this.scissorTest = false;
-
-	this.viewport = new Vector4( 0, 0, width, height );
-
-	options = options || {};
-
-	if ( options.minFilter === undefined ) options.minFilter = LinearFilter;
-
-	this.texture = new Texture( undefined, undefined, options.wrapS, options.wrapT, options.magFilter, options.minFilter, options.format, options.type, options.anisotropy, options.encoding );
-
-	this.depthBuffer = options.depthBuffer !== undefined ? options.depthBuffer : true;
-	this.stencilBuffer = options.stencilBuffer !== undefined ? options.stencilBuffer : true;
-	this.depthTexture = options.depthTexture !== undefined ? options.depthTexture : null;
-
-}
-
-Object.assign( WebGLRenderTarget.prototype, EventDispatcher.prototype, {
-
-	isWebGLRenderTarget: true,
-
-	setSize: function ( width, height ) {
-
-		if ( this.width !== width || this.height !== height ) {
-
-			this.width = width;
-			this.height = height;
-
-			this.dispose();
-
-		}
-
-		this.viewport.set( 0, 0, width, height );
-		this.scissor.set( 0, 0, width, height );
-
-	},
-
-	clone: function () {
-
-		return new this.constructor().copy( this );
-
-	},
-
-	copy: function ( source ) {
-
-		this.width = source.width;
-		this.height = source.height;
-
-		this.viewport.copy( source.viewport );
-
-		this.texture = source.texture.clone();
-
-		this.depthBuffer = source.depthBuffer;
-		this.stencilBuffer = source.stencilBuffer;
-		this.depthTexture = source.depthTexture;
-
-		return this;
-
-	},
-
-	dispose: function () {
-
-		this.dispatchEvent( { type: 'dispose' } );
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isWebGLRenderTarget = true;
 
 	}
 
-} );
-
+}
 
 export { WebGLRenderTarget };

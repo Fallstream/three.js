@@ -1,91 +1,156 @@
-import { Vector3 } from '../math/Vector3';
-import { Object3D } from '../core/Object3D';
-import { LineSegments } from '../objects/LineSegments';
-import { LineBasicMaterial } from '../materials/LineBasicMaterial';
-import { Float32BufferAttribute } from '../core/BufferAttribute';
-import { BufferGeometry } from '../core/BufferGeometry';
+import { Vector3 } from '../math/Vector3.js';
+import { Object3D } from '../core/Object3D.js';
+import { LineSegments } from '../objects/LineSegments.js';
+import { LineBasicMaterial } from '../materials/LineBasicMaterial.js';
+import { Float32BufferAttribute } from '../core/BufferAttribute.js';
+import { BufferGeometry } from '../core/BufferGeometry.js';
+
+const _vector = /*@__PURE__*/ new Vector3();
 
 /**
- * @author alteredq / http://alteredqualia.com/
- * @author mrdoob / http://mrdoob.com/
- * @author WestLangley / http://github.com/WestLangley
-*/
+ * This displays a cone shaped helper object for a {@link SpotLight}.
+ *
+ * When the spot light or its target are transformed or light properties are
+ * changed, it's necessary to call the `update()` method of the respective helper.
+ *
+ * ```js
+ * const spotLight = new THREE.SpotLight( 0xffffff );
+ * spotLight.position.set( 10, 10, 10 );
+ * scene.add( spotLight );
+ *
+ * const spotLightHelper = new THREE.SpotLightHelper( spotLight );
+ * scene.add( spotLightHelper );
+ * ```
+ *
+ * @augments Object3D
+ */
+class SpotLightHelper extends Object3D {
 
-function SpotLightHelper( light ) {
+	/**
+	 * Constructs a new spot light helper.
+	 *
+	 * @param {HemisphereLight} light - The light to be visualized.
+	 * @param {number|Color|string} [color] - The helper's color. If not set, the helper will take
+	 * the color of the light.
+	 */
+	constructor( light, color ) {
 
-	Object3D.call( this );
+		super();
 
-	this.light = light;
-	this.light.updateMatrixWorld();
+		/**
+		 * The light being visualized.
+		 *
+		 * @type {SpotLight}
+		 */
+		this.light = light;
 
-	this.matrix = light.matrixWorld;
-	this.matrixAutoUpdate = false;
+		this.matrixAutoUpdate = false;
 
-	var geometry = new BufferGeometry();
+		/**
+		 * The color parameter passed in the constructor.
+		 * If not set, the helper will take the color of the light.
+		 *
+		 * @type {number|Color|string}
+		 */
+		this.color = color;
 
-	var positions = [
-		0, 0, 0,   0,   0,   1,
-		0, 0, 0,   1,   0,   1,
-		0, 0, 0, - 1,   0,   1,
-		0, 0, 0,   0,   1,   1,
-		0, 0, 0,   0, - 1,   1
-	];
+		this.type = 'SpotLightHelper';
 
-	for ( var i = 0, j = 1, l = 32; i < l; i ++, j ++ ) {
+		const geometry = new BufferGeometry();
 
-		var p1 = ( i / l ) * Math.PI * 2;
-		var p2 = ( j / l ) * Math.PI * 2;
+		const positions = [
+			0, 0, 0, 	0, 0, 1,
+			0, 0, 0, 	1, 0, 1,
+			0, 0, 0,	- 1, 0, 1,
+			0, 0, 0, 	0, 1, 1,
+			0, 0, 0, 	0, - 1, 1
+		];
 
-		positions.push(
-			Math.cos( p1 ), Math.sin( p1 ), 1,
-			Math.cos( p2 ), Math.sin( p2 ), 1
-		);
+		for ( let i = 0, j = 1, l = 32; i < l; i ++, j ++ ) {
+
+			const p1 = ( i / l ) * Math.PI * 2;
+			const p2 = ( j / l ) * Math.PI * 2;
+
+			positions.push(
+				Math.cos( p1 ), Math.sin( p1 ), 1,
+				Math.cos( p2 ), Math.sin( p2 ), 1
+			);
+
+		}
+
+		geometry.setAttribute( 'position', new Float32BufferAttribute( positions, 3 ) );
+
+		const material = new LineBasicMaterial( { fog: false, toneMapped: false } );
+
+		this.cone = new LineSegments( geometry, material );
+		this.add( this.cone );
+
+		this.update();
 
 	}
 
-	geometry.addAttribute( 'position', new Float32BufferAttribute( positions, 3 ) );
+	/**
+	 * Frees the GPU-related resources allocated by this instance. Call this
+	 * method whenever this instance is no longer used in your app.
+	 */
+	dispose() {
 
-	var material = new LineBasicMaterial( { fog: false } );
+		super.dispose();
 
-	this.cone = new LineSegments( geometry, material );
-	this.add( this.cone );
+		this.cone.geometry.dispose();
+		this.cone.material.dispose();
 
-	this.update();
+	}
 
-}
+	/**
+	 * Updates the helper to match the position and direction of the
+	 * light being visualized.
+	 */
+	update() {
 
-SpotLightHelper.prototype = Object.create( Object3D.prototype );
-SpotLightHelper.prototype.constructor = SpotLightHelper;
+		this.light.updateWorldMatrix( true, false );
+		this.light.target.updateWorldMatrix( true, false );
 
-SpotLightHelper.prototype.dispose = function () {
+		// update the local matrix based on the parent and light target transforms
+		if ( this.parent ) {
 
-	this.cone.geometry.dispose();
-	this.cone.material.dispose();
+			this.parent.updateWorldMatrix( true );
 
-};
+			this.matrix
+				.copy( this.parent.matrixWorld )
+				.invert()
+				.multiply( this.light.matrixWorld );
 
-SpotLightHelper.prototype.update = function () {
+		} else {
 
-	var vector = new Vector3();
-	var vector2 = new Vector3();
+			this.matrix.copy( this.light.matrixWorld );
 
-	return function update() {
+		}
 
-		var coneLength = this.light.distance ? this.light.distance : 1000;
-		var coneWidth = coneLength * Math.tan( this.light.angle );
+		this.matrixWorldNeedsUpdate = true;
+
+		const coneLength = this.light.distance ? this.light.distance : 1000;
+		const coneWidth = coneLength * Math.tan( this.light.angle );
 
 		this.cone.scale.set( coneWidth, coneWidth, coneLength );
 
-		vector.setFromMatrixPosition( this.light.matrixWorld );
-		vector2.setFromMatrixPosition( this.light.target.matrixWorld );
+		_vector.setFromMatrixPosition( this.light.target.matrixWorld );
 
-		this.cone.lookAt( vector2.sub( vector ) );
+		this.cone.lookAt( _vector );
 
-		this.cone.material.color.copy( this.light.color ).multiplyScalar( this.light.intensity );
+		if ( this.color !== undefined ) {
 
-	};
+			this.cone.material.color.set( this.color );
 
-}();
+		} else {
+
+			this.cone.material.color.copy( this.light.color );
+
+		}
+
+	}
+
+}
 
 
 export { SpotLightHelper };

@@ -1,41 +1,55 @@
-import { InterpolateDiscrete } from '../../constants';
-import { KeyframeTrackPrototype } from '../KeyframeTrackPrototype';
-import { KeyframeTrackConstructor } from '../KeyframeTrackConstructor';
+import { InterpolateDiscrete } from '../../constants.js';
+import { KeyframeTrack } from '../KeyframeTrack.js';
 
 /**
+ * A track for boolean keyframe values.
  *
- * A Track of Boolean keyframe values.
- *
- *
- * @author Ben Houston / http://clara.io/
- * @author David Sarno / http://lighthaus.us/
- * @author tschw
+ * @augments KeyframeTrack
  */
+class BooleanKeyframeTrack extends KeyframeTrack {
 
-function BooleanKeyframeTrack( name, times, values ) {
+	/**
+	 * Constructs a new boolean keyframe track.
+	 *
+	 * This keyframe track type has no `interpolation` parameter because the
+	 * interpolation is always discrete.
+	 *
+	 * @param {string} name - The keyframe track's name.
+	 * @param {Array<number>} times - A list of keyframe times.
+	 * @param {Array<boolean>} values - A list of keyframe values.
+	 */
+	constructor( name, times, values ) {
 
-	KeyframeTrackConstructor.call( this, name, times, values );
+		super( name, times, values );
+
+	}
 
 }
 
-BooleanKeyframeTrack.prototype =
-		Object.assign( Object.create( KeyframeTrackPrototype ), {
+/**
+ * The value type name.
+ *
+ * @type {string}
+ * @default 'bool'
+ */
+BooleanKeyframeTrack.prototype.ValueTypeName = 'bool';
 
-	constructor: BooleanKeyframeTrack,
+/**
+ * The value buffer type of this keyframe track.
+ *
+ * @type {TypedArray|Array}
+ * @default Array.constructor
+ */
+BooleanKeyframeTrack.prototype.ValueBufferType = Array;
 
-	ValueTypeName: 'bool',
-	ValueBufferType: Array,
-
-	DefaultInterpolation: InterpolateDiscrete,
-
-	InterpolantFactoryMethodLinear: undefined,
-	InterpolantFactoryMethodSmooth: undefined
-
-	// Note: Actually this track could have a optimized / compressed
-	// representation of a single value and a custom interpolant that
-	// computes "firstValue ^ isOdd( index )".
-
-} );
-
+/**
+ * The default interpolation type of this keyframe track.
+ *
+ * @type {(InterpolateLinear|InterpolateDiscrete|InterpolateSmooth)}
+ * @default InterpolateDiscrete
+ */
+BooleanKeyframeTrack.prototype.DefaultInterpolation = InterpolateDiscrete;
+BooleanKeyframeTrack.prototype.InterpolantFactoryMethodLinear = undefined;
+BooleanKeyframeTrack.prototype.InterpolantFactoryMethodSmooth = undefined;
 
 export { BooleanKeyframeTrack };

@@ -1,34 +1,61 @@
+import { ImageLoader } from './ImageLoader.js';
+import { Texture } from '../textures/Texture.js';
+import { Loader } from './Loader.js';
+
 /**
- * @author mrdoob / http://mrdoob.com/
+ * Class for loading textures. Images are internally
+ * loaded via {@link ImageLoader}.
+ *
+ * ```js
+ * const loader = new THREE.TextureLoader();
+ * const texture = await loader.loadAsync( 'textures/land_ocean_ice_cloud_2048.jpg' );
+ *
+ * const material = new THREE.MeshBasicMaterial( { map:texture } );
+ * ```
+ * Please note that `TextureLoader` has dropped support for progress
+ * events in `r84`. For a `TextureLoader` that supports progress events, see
+ * [this thread](https://github.com/mrdoob/three.js/issues/10439#issuecomment-293260145).
+ *
+ * @augments Loader
  */
+class TextureLoader extends Loader {
 
-import { RGBAFormat, RGBFormat } from '../constants';
-import { ImageLoader } from './ImageLoader';
-import { Texture } from '../textures/Texture';
-import { DefaultLoadingManager } from './LoadingManager';
+	/**
+	 * Constructs a new texture loader.
+	 *
+	 * @param {LoadingManager} [manager] - The loading manager.
+	 */
+	constructor( manager ) {
 
+		super( manager );
 
-function TextureLoader( manager ) {
+	}
 
-	this.manager = ( manager !== undefined ) ? manager : DefaultLoadingManager;
+	/**
+	 * Starts loading from the given URL and pass the fully loaded texture
+	 * to the `onLoad()` callback. The method also returns a new texture object which can
+	 * directly be used for material creation. If you do it this way, the texture
+	 * may pop up in your scene once the respective loading process is finished.
+	 *
+	 * @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	 * @param {function(Texture)} [onLoad] - Executed when the loading process has been finished.
+	 * @param {onProgressCallback} [onProgress] - Unsupported in this loader.
+	 * @param {onErrorCallback} [onError] - Executed when errors occur.
+	 * @return {Texture} The texture.
+	 */
+	load( url, onLoad, onProgress, onError ) {
 
-}
+		const texture = new Texture();
 
-Object.assign( TextureLoader.prototype, {
-
-	load: function ( url, onLoad, onProgress, onError ) {
-
-		var loader = new ImageLoader( this.manager );
+		const loader = new ImageLoader( this.manager );
+		loader.setPriority( this.priority );
+		loader.setCache( this.cache );
 		loader.setCrossOrigin( this.crossOrigin );
 		loader.setPath( this.path );
 
-		var texture = new Texture();
-		texture.image = loader.load( url, function () {
+		loader.load( url, function ( image ) {
 
-			// JPEGs can't have an alpha channel, so memory can be saved by storing them as RGB.
-			var isJPEG = url.search( /\.(jpg|jpeg)$/ ) > 0 || url.search( /^data\:image\/jpeg/ ) === 0;
-
-			texture.format = isJPEG ? RGBFormat : RGBAFormat;
+			texture.image = image;
 			texture.needsUpdate = true;
 
 			if ( onLoad !== undefined ) {
@@ -41,23 +68,9 @@ Object.assign( TextureLoader.prototype, {
 
 		return texture;
 
-	},
-
-	setCrossOrigin: function ( value ) {
-
-		this.crossOrigin = value;
-		return this;
-
-	},
-
-	setPath: function ( value ) {
-
-		this.path = value;
-		return this;
-
 	}
 
-} );
+}
 
 
 export { TextureLoader };

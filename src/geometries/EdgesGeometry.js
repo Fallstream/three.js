@@ -1,113 +1,182 @@
-import { BufferGeometry } from '../core/BufferGeometry';
-import { Float32BufferAttribute } from '../core/BufferAttribute';
-import { Geometry } from '../core/Geometry';
-import { _Math } from '../math/Math';
+import { BufferGeometry } from '../core/BufferGeometry.js';
+import { Float32BufferAttribute } from '../core/BufferAttribute.js';
+import { DEG2RAD } from '../math/MathUtils.js';
+import { Triangle } from '../math/Triangle.js';
+import { Vector3 } from '../math/Vector3.js';
+
+const _v0 = /*@__PURE__*/ new Vector3();
+const _v1 = /*@__PURE__*/ new Vector3();
+const _normal = /*@__PURE__*/ new Vector3();
+const _triangle = /*@__PURE__*/ new Triangle();
 
 /**
- * @author WestLangley / http://github.com/WestLangley
- * @author Mugen87 / https://github.com/Mugen87
+ * Can be used as a helper object to view the edges of a geometry.
+ *
+ * ```js
+ * const geometry = new THREE.BoxGeometry();
+ * const edges = new THREE.EdgesGeometry( geometry );
+ * const line = new THREE.LineSegments( edges );
+ * scene.add( line );
+ * ```
+ *
+ * Note: It is not yet possible to serialize/deserialize instances of this class.
+ *
+ * @augments BufferGeometry
  */
+class EdgesGeometry extends BufferGeometry {
 
-function EdgesGeometry( geometry, thresholdAngle ) {
+	/**
+	 * Constructs a new edges geometry.
+	 *
+	 * @param {?BufferGeometry} [geometry=null] - The geometry.
+	 * @param {number} [thresholdAngle=1] - An edge is only rendered if the angle (in degrees)
+	 * between the face normals of the adjoining faces exceeds this value.
+	 */
+	constructor( geometry = null, thresholdAngle = 1 ) {
 
-	BufferGeometry.call( this );
+		super();
 
-	this.type = 'EdgesGeometry';
+		this.type = 'EdgesGeometry';
 
-	this.parameters = {
-		thresholdAngle: thresholdAngle
-	};
+		/**
+		 * Holds the constructor parameters that have been
+		 * used to generate the geometry. Any modification
+		 * after instantiation does not change the geometry.
+		 *
+		 * @type {Object}
+		 */
+		this.parameters = {
+			geometry: geometry,
+			thresholdAngle: thresholdAngle
+		};
 
-	thresholdAngle = ( thresholdAngle !== undefined ) ? thresholdAngle : 1;
+		if ( geometry !== null ) {
 
-	// buffer
+			const precisionPoints = 4;
+			const precision = Math.pow( 10, precisionPoints );
+			const thresholdDot = Math.cos( DEG2RAD * thresholdAngle );
 
-	var vertices = [];
+			const indexAttr = geometry.getIndex();
+			const positionAttr = geometry.getAttribute( 'position' );
+			const indexCount = indexAttr ? indexAttr.count : positionAttr.count;
 
-	// helper variables
+			const indexArr = [ 0, 0, 0 ];
+			const vertKeys = [ 'a', 'b', 'c' ];
+			const hashes = new Array( 3 );
 
-	var thresholdDot = Math.cos( _Math.DEG2RAD * thresholdAngle );
-	var edge = [ 0, 0 ], edges = {}, edge1, edge2;
-	var key, keys = [ 'a', 'b', 'c' ];
+			const edgeData = new Map();
+			const vertices = [];
+			for ( let i = 0; i < indexCount; i += 3 ) {
 
-	// prepare source geometry
+				if ( indexAttr ) {
 
-	var geometry2;
+					indexArr[ 0 ] = indexAttr.getX( i );
+					indexArr[ 1 ] = indexAttr.getX( i + 1 );
+					indexArr[ 2 ] = indexAttr.getX( i + 2 );
 
-	if ( geometry.isBufferGeometry ) {
+				} else {
 
-		geometry2 = new Geometry();
-		geometry2.fromBufferGeometry( geometry );
+					indexArr[ 0 ] = i;
+					indexArr[ 1 ] = i + 1;
+					indexArr[ 2 ] = i + 2;
 
-	} else {
+				}
 
-		geometry2 = geometry.clone();
+				const { a, b, c } = _triangle;
+				a.fromBufferAttribute( positionAttr, indexArr[ 0 ] );
+				b.fromBufferAttribute( positionAttr, indexArr[ 1 ] );
+				c.fromBufferAttribute( positionAttr, indexArr[ 2 ] );
+				_triangle.getNormal( _normal );
 
-	}
+				// create hashes for the edge from the vertices
+				hashes[ 0 ] = `${ Math.round( a.x * precision ) },${ Math.round( a.y * precision ) },${ Math.round( a.z * precision ) }`;
+				hashes[ 1 ] = `${ Math.round( b.x * precision ) },${ Math.round( b.y * precision ) },${ Math.round( b.z * precision ) }`;
+				hashes[ 2 ] = `${ Math.round( c.x * precision ) },${ Math.round( c.y * precision ) },${ Math.round( c.z * precision ) }`;
 
-	geometry2.mergeVertices();
-	geometry2.computeFaceNormals();
+				// skip degenerate triangles
+				if ( hashes[ 0 ] === hashes[ 1 ] || hashes[ 1 ] === hashes[ 2 ] || hashes[ 2 ] === hashes[ 0 ] ) {
 
-	var sourceVertices = geometry2.vertices;
-	var faces = geometry2.faces;
+					continue;
 
-	// now create a data structure where each entry represents an edge with its adjoining faces
+				}
 
-	for ( var i = 0, l = faces.length; i < l; i ++ ) {
+				// iterate over every edge
+				for ( let j = 0; j < 3; j ++ ) {
 
-		var face = faces[ i ];
+					// get the first and next vertex making up the edge
+					const jNext = ( j + 1 ) % 3;
+					const vecHash0 = hashes[ j ];
+					const vecHash1 = hashes[ jNext ];
+					const v0 = _triangle[ vertKeys[ j ] ];
+					const v1 = _triangle[ vertKeys[ jNext ] ];
 
-		for ( var j = 0; j < 3; j ++ ) {
+					const hash = `${ vecHash0 }_${ vecHash1 }`;
+					const reverseHash = `${ vecHash1 }_${ vecHash0 }`;
 
-			edge1 = face[ keys[ j ] ];
-			edge2 = face[ keys[ ( j + 1 ) % 3 ] ];
-			edge[ 0 ] = Math.min( edge1, edge2 );
-			edge[ 1 ] = Math.max( edge1, edge2 );
+					const sibling = edgeData.get( reverseHash );
 
-			key = edge[ 0 ] + ',' + edge[ 1 ];
+					if ( sibling ) {
 
-			if ( edges[ key ] === undefined ) {
+						// if we found a sibling edge add it into the vertex array if
+						// it meets the angle threshold and delete the edge from the map.
+						if ( _normal.dot( sibling.normal ) <= thresholdDot ) {
 
-				edges[ key ] = { index1: edge[ 0 ], index2: edge[ 1 ], face1: i, face2: undefined };
+							vertices.push( v0.x, v0.y, v0.z );
+							vertices.push( v1.x, v1.y, v1.z );
 
-			} else {
+						}
 
-				edges[ key ].face2 = i;
+						edgeData.set( reverseHash, null );
+
+					} else if ( ! edgeData.has( hash ) ) {
+
+						// if we've already got an edge here then skip adding a new one
+						edgeData.set( hash, {
+
+							index0: indexArr[ j ],
+							index1: indexArr[ jNext ],
+							normal: _normal.clone(),
+
+						} );
+
+					}
+
+				}
 
 			}
 
-		}
+			// iterate over all remaining, unmatched edges and add them to the vertex array
+			for ( const edge of edgeData.values() ) {
 
-	}
+				if ( edge ) {
 
-	// generate vertices
+					const { index0, index1 } = edge;
+					_v0.fromBufferAttribute( positionAttr, index0 );
+					_v1.fromBufferAttribute( positionAttr, index1 );
 
-	for ( key in edges ) {
+					vertices.push( _v0.x, _v0.y, _v0.z );
+					vertices.push( _v1.x, _v1.y, _v1.z );
 
-		var e = edges[ key ];
+				}
 
-		// an edge is only rendered if the angle (in degrees) between the face normals of the adjoining faces exceeds this value. default = 1 degree.
+			}
 
-		if ( e.face2 === undefined || faces[ e.face1 ].normal.dot( faces[ e.face2 ].normal ) <= thresholdDot ) {
-
-			var vertex = sourceVertices[ e.index1 ];
-			vertices.push( vertex.x, vertex.y, vertex.z );
-
-			vertex = sourceVertices[ e.index2 ];
-			vertices.push( vertex.x, vertex.y, vertex.z );
+			this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
 
 		}
 
 	}
 
-	// build geometry
+	copy( source ) {
 
-	this.addAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+		super.copy( source );
+
+		this.parameters = Object.assign( {}, source.parameters );
+
+		return this;
+
+	}
 
 }
-
-EdgesGeometry.prototype = Object.create( BufferGeometry.prototype );
-EdgesGeometry.prototype.constructor = EdgesGeometry;
-
 
 export { EdgesGeometry };

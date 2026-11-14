@@ -1,38 +1,69 @@
-(function () {
+import { CircleGeometry } from '../../../../src/geometries/CircleGeometry.js';
 
-	'use strict';
+import { BufferGeometry } from '../../../../src/core/BufferGeometry.js';
+import { runStdGeometryTests } from '../../utils/qunit-utils.js';
 
-	var parameters = {
-		radius: 10,
-		segments: 20,
-		thetaStart: 0.1,
-		thetaLength: 0.2
-	};
+export default QUnit.module( 'Geometries', () => {
 
-	var geometries;
+	QUnit.module( 'CircleGeometry', ( hooks ) => {
 
-	QUnit.module( "Extras - Geometries - CircleGeometry", {
+		let geometries = undefined;
+		hooks.beforeEach( function () {
 
-		beforeEach: function() {
+			const parameters = {
+				radius: 10,
+				segments: 20,
+				thetaStart: 0.1,
+				thetaLength: 0.2
+			};
 
 			geometries = [
-
-				new THREE.CircleGeometry(),
-				new THREE.CircleGeometry( parameters.radius ),
-				new THREE.CircleGeometry( parameters.radius, parameters.segments ),
-				new THREE.CircleGeometry( parameters.radius, parameters.segments, parameters.thetaStart ),
-				new THREE.CircleGeometry( parameters.radius, parameters.segments, parameters.thetaStart, parameters.thetaLength ),
-
+				new CircleGeometry(),
+				new CircleGeometry( parameters.radius ),
+				new CircleGeometry( parameters.radius, parameters.segments ),
+				new CircleGeometry( parameters.radius, parameters.segments, parameters.thetaStart ),
+				new CircleGeometry( parameters.radius, parameters.segments, parameters.thetaStart, parameters.thetaLength ),
 			];
 
-		}
+		} );
 
-	});
+		// INHERITANCE
+		QUnit.test( 'Extending', ( assert ) => {
 
-	QUnit.test( "standard geometry tests", function( assert ) {
+			const object = new CircleGeometry();
+			assert.strictEqual(
+				object instanceof BufferGeometry, true,
+				'CircleGeometry extends from BufferGeometry'
+			);
 
-		runStdGeometryTests( assert, geometries );
+		} );
 
-	});
+		// INSTANCING
+		QUnit.test( 'Instancing', ( assert ) => {
 
-})();
+			const object = new CircleGeometry();
+			assert.ok( object, 'Can instantiate a CircleGeometry.' );
+
+		} );
+
+		// PROPERTIES
+		QUnit.test( 'type', ( assert ) => {
+
+			const object = new CircleGeometry();
+			assert.ok(
+				object.type === 'CircleGeometry',
+				'CircleGeometry.type should be CircleGeometry'
+			);
+
+		} );
+
+		// OTHERS
+		QUnit.test( 'Standard geometry tests', ( assert ) => {
+
+			runStdGeometryTests( assert, geometries );
+
+		} );
+
+	} );
+
+} );

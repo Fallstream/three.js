@@ -1,18 +1,17 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import { FloatType, HalfFloatType, RGBAFormat, UnsignedByteType } from '../../constants.js';
+import { warn } from '../../utils.js';
 
-function WebGLCapabilities( gl, extensions, parameters ) {
+function WebGLCapabilities( gl, extensions, parameters, utils ) {
 
-	var maxAnisotropy;
+	let maxAnisotropy;
 
 	function getMaxAnisotropy() {
 
 		if ( maxAnisotropy !== undefined ) return maxAnisotropy;
 
-		var extension = extensions.get( 'EXT_texture_filter_anisotropic' );
+		if ( extensions.has( 'EXT_texture_filter_anisotropic' ) === true ) {
 
-		if ( extension !== null ) {
+			const extension = extensions.get( 'EXT_texture_filter_anisotropic' );
 
 			maxAnisotropy = gl.getParameter( extension.MAX_TEXTURE_MAX_ANISOTROPY_EXT );
 
@@ -26,12 +25,39 @@ function WebGLCapabilities( gl, extensions, parameters ) {
 
 	}
 
+	function textureFormatReadable( textureFormat ) {
+
+		if ( textureFormat !== RGBAFormat && utils.convert( textureFormat ) !== gl.getParameter( gl.IMPLEMENTATION_COLOR_READ_FORMAT ) ) {
+
+			return false;
+
+		}
+
+		return true;
+
+	}
+
+	function textureTypeReadable( textureType ) {
+
+		const halfFloatSupportedByExt = ( textureType === HalfFloatType ) && ( extensions.has( 'EXT_color_buffer_half_float' ) || extensions.has( 'EXT_color_buffer_float' ) );
+
+		if ( textureType !== UnsignedByteType && textureType !== FloatType && ! halfFloatSupportedByExt &&
+			utils.convert( textureType ) !== gl.getParameter( gl.IMPLEMENTATION_COLOR_READ_TYPE ) ) { // Edge and Chrome Mac < 52 (#9513)
+
+			return false;
+
+		}
+
+		return true;
+
+	}
+
 	function getMaxPrecision( precision ) {
 
 		if ( precision === 'highp' ) {
 
 			if ( gl.getShaderPrecisionFormat( gl.VERTEX_SHADER, gl.HIGH_FLOAT ).precision > 0 &&
-			     gl.getShaderPrecisionFormat( gl.FRAGMENT_SHADER, gl.HIGH_FLOAT ).precision > 0 ) {
+				gl.getShaderPrecisionFormat( gl.FRAGMENT_SHADER, gl.HIGH_FLOAT ).precision > 0 ) {
 
 				return 'highp';
 
@@ -44,7 +70,7 @@ function WebGLCapabilities( gl, extensions, parameters ) {
 		if ( precision === 'mediump' ) {
 
 			if ( gl.getShaderPrecisionFormat( gl.VERTEX_SHADER, gl.MEDIUM_FLOAT ).precision > 0 &&
-			     gl.getShaderPrecisionFormat( gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT ).precision > 0 ) {
+				gl.getShaderPrecisionFormat( gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT ).precision > 0 ) {
 
 				return 'mediump';
 
@@ -56,39 +82,57 @@ function WebGLCapabilities( gl, extensions, parameters ) {
 
 	}
 
-	var precision = parameters.precision !== undefined ? parameters.precision : 'highp';
-	var maxPrecision = getMaxPrecision( precision );
+	let precision = parameters.precision !== undefined ? parameters.precision : 'highp';
+	const maxPrecision = getMaxPrecision( precision );
 
 	if ( maxPrecision !== precision ) {
 
-		console.warn( 'THREE.WebGLRenderer:', precision, 'not supported, using', maxPrecision, 'instead.' );
+		warn( 'WebGLRenderer:', precision, 'not supported, using', maxPrecision, 'instead.' );
 		precision = maxPrecision;
 
 	}
 
-	var logarithmicDepthBuffer = parameters.logarithmicDepthBuffer === true && !! extensions.get( 'EXT_frag_depth' );
+	const reversedDepthBuffer = parameters.reversedDepthBuffer === true && extensions.has( 'EXT_clip_control' );
+	const logarithmicDepthBuffer = parameters.logarithmicDepthBuffer === true && reversedDepthBuffer === false;
 
-	var maxTextures = gl.getParameter( gl.MAX_TEXTURE_IMAGE_UNITS );
-	var maxVertexTextures = gl.getParameter( gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS );
-	var maxTextureSize = gl.getParameter( gl.MAX_TEXTURE_SIZE );
-	var maxCubemapSize = gl.getParameter( gl.MAX_CUBE_MAP_TEXTURE_SIZE );
+	if ( parameters.reversedDepthBuffer === true && reversedDepthBuffer === false ) {
 
-	var maxAttributes = gl.getParameter( gl.MAX_VERTEX_ATTRIBS );
-	var maxVertexUniforms = gl.getParameter( gl.MAX_VERTEX_UNIFORM_VECTORS );
-	var maxVaryings = gl.getParameter( gl.MAX_VARYING_VECTORS );
-	var maxFragmentUniforms = gl.getParameter( gl.MAX_FRAGMENT_UNIFORM_VECTORS );
+		warn( 'WebGLRenderer: Unable to use reversed depth buffer due to missing EXT_clip_control extension. Fallback to default depth buffer.' );
 
-	var vertexTextures = maxVertexTextures > 0;
-	var floatFragmentTextures = !! extensions.get( 'OES_texture_float' );
-	var floatVertexTextures = vertexTextures && floatFragmentTextures;
+	}
+
+	if ( parameters.logarithmicDepthBuffer === true && reversedDepthBuffer === true ) {
+
+		warn( 'WebGLRenderer: Logarithmic depth buffer is ignored when reversed depth buffer is enabled.' );
+
+	}
+
+	const maxTextures = gl.getParameter( gl.MAX_TEXTURE_IMAGE_UNITS );
+	const maxVertexTextures = gl.getParameter( gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS );
+	const maxTextureSize = gl.getParameter( gl.MAX_TEXTURE_SIZE );
+	const maxCubemapSize = gl.getParameter( gl.MAX_CUBE_MAP_TEXTURE_SIZE );
+
+	const maxAttributes = gl.getParameter( gl.MAX_VERTEX_ATTRIBS );
+	const maxVertexUniforms = gl.getParameter( gl.MAX_VERTEX_UNIFORM_VECTORS );
+	const maxVaryings = gl.getParameter( gl.MAX_VARYING_VECTORS );
+	const maxFragmentUniforms = gl.getParameter( gl.MAX_FRAGMENT_UNIFORM_VECTORS );
+
+	const maxSamples = gl.getParameter( gl.MAX_SAMPLES );
+	const samples = gl.getParameter( gl.SAMPLES );
 
 	return {
+
+		isWebGL2: true, // keeping this for backwards compatibility
 
 		getMaxAnisotropy: getMaxAnisotropy,
 		getMaxPrecision: getMaxPrecision,
 
+		textureFormatReadable: textureFormatReadable,
+		textureTypeReadable: textureTypeReadable,
+
 		precision: precision,
 		logarithmicDepthBuffer: logarithmicDepthBuffer,
+		reversedDepthBuffer: reversedDepthBuffer,
 
 		maxTextures: maxTextures,
 		maxVertexTextures: maxVertexTextures,
@@ -100,9 +144,9 @@ function WebGLCapabilities( gl, extensions, parameters ) {
 		maxVaryings: maxVaryings,
 		maxFragmentUniforms: maxFragmentUniforms,
 
-		vertexTextures: vertexTextures,
-		floatFragmentTextures: floatFragmentTextures,
-		floatVertexTextures: floatVertexTextures
+		maxSamples: maxSamples,
+
+		samples: samples
 
 	};
 

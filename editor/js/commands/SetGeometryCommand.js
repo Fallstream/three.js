@@ -1,31 +1,29 @@
-/**
- * @author dforrer / https://github.com/dforrer
- * Developed as part of a project at University of Applied Sciences and Arts Northwestern Switzerland (www.fhnw.ch)
- */
+import { Command } from '../Command.js';
+import { ObjectLoader } from 'three';
 
-/**
- * @param object THREE.Object3D
- * @param newGeometry THREE.Geometry
- * @constructor
- */
+class SetGeometryCommand extends Command {
 
-var SetGeometryCommand = function ( object, newGeometry ) {
+	/**
+	 * @param {Editor} editor
+	 * @param {THREE.Object3D|null} [object=null]
+	 * @param {THREE.Geometry|null} [newGeometry=null]
+	 * @constructor
+	 */
+	constructor( editor, object = null, newGeometry = null ) {
 
-	Command.call( this );
+		super( editor );
 
-	this.type = 'SetGeometryCommand';
-	this.name = 'Set Geometry';
-	this.updatable = true;
+		this.type = 'SetGeometryCommand';
+		this.name = editor.strings.getKey( 'command/SetGeometry' );
+		this.updatable = true;
 
-	this.object = object;
-	this.oldGeometry = ( object !== undefined ) ? object.geometry : undefined;
-	this.newGeometry = newGeometry;
+		this.object = object;
+		this.oldGeometry = ( object !== null ) ? object.geometry : null;
+		this.newGeometry = newGeometry;
 
-};
+	}
 
-SetGeometryCommand.prototype = {
-
-	execute: function () {
+	execute() {
 
 		this.object.geometry.dispose();
 		this.object.geometry = this.newGeometry;
@@ -34,9 +32,9 @@ SetGeometryCommand.prototype = {
 		this.editor.signals.geometryChanged.dispatch( this.object );
 		this.editor.signals.sceneGraphChanged.dispatch();
 
-	},
+	}
 
-	undo: function () {
+	undo() {
 
 		this.object.geometry.dispose();
 		this.object.geometry = this.oldGeometry;
@@ -45,42 +43,44 @@ SetGeometryCommand.prototype = {
 		this.editor.signals.geometryChanged.dispatch( this.object );
 		this.editor.signals.sceneGraphChanged.dispatch();
 
-	},
+	}
 
-	update: function ( cmd ) {
+	update( cmd ) {
 
 		this.newGeometry = cmd.newGeometry;
 
-	},
+	}
 
-	toJSON: function () {
+	toJSON() {
 
-		var output = Command.prototype.toJSON.call( this );
+		const output = super.toJSON( this );
 
 		output.objectUuid = this.object.uuid;
-		output.oldGeometry = this.object.geometry.toJSON();
+		output.oldGeometry = this.oldGeometry.toJSON();
 		output.newGeometry = this.newGeometry.toJSON();
 
 		return output;
 
-	},
+	}
 
-	fromJSON: function ( json ) {
+	fromJSON( json ) {
 
-		Command.prototype.fromJSON.call( this, json );
+		super.fromJSON( json );
 
 		this.object = this.editor.objectByUuid( json.objectUuid );
 
 		this.oldGeometry = parseGeometry( json.oldGeometry );
 		this.newGeometry = parseGeometry( json.newGeometry );
 
-		function parseGeometry ( data ) {
+		function parseGeometry( data ) {
 
-			var loader = new THREE.ObjectLoader();
+			const loader = new ObjectLoader();
 			return loader.parseGeometries( [ data ] )[ data.uuid ];
 
 		}
 
 	}
 
-};
+}
+
+export { SetGeometryCommand };

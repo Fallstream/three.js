@@ -1,195 +1,204 @@
+import { BufferGeometry } from '../core/BufferGeometry.js';
+import { Float32BufferAttribute } from '../core/BufferAttribute.js';
+import * as Curves from '../extras/curves/Curves.js';
+import { Vector2 } from '../math/Vector2.js';
+import { Vector3 } from '../math/Vector3.js';
+
 /**
- * @author oosmoxiecode / https://github.com/oosmoxiecode
- * @author WestLangley / https://github.com/WestLangley
- * @author zz85 / https://github.com/zz85
- * @author miningold / https://github.com/miningold
- * @author jonobr1 / https://github.com/jonobr1
+ * Creates a tube that extrudes along a 3D curve.
  *
- * Creates a tube which extrudes along a 3d spline.
+ * ```js
+ * class CustomSinCurve extends THREE.Curve {
+ *
+ * 	getPoint( t, optionalTarget = new THREE.Vector3() ) {
+ *
+ * 		const tx = t * 3 - 1.5;
+ * 		const ty = Math.sin( 2 * Math.PI * t );
+ * 		const tz = 0;
+ *
+ * 		return optionalTarget.set( tx, ty, tz );
+ * 	}
+ *
+ * }
+ *
+ * const path = new CustomSinCurve( 10 );
+ * const geometry = new THREE.TubeGeometry( path, 20, 2, 8, false );
+ * const material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+ * const mesh = new THREE.Mesh( geometry, material );
+ * scene.add( mesh );
+ * ```
+ *
+ * @augments BufferGeometry
+ * @demo scenes/geometry-browser.html#TubeGeometry
  */
+class TubeGeometry extends BufferGeometry {
 
-import { Geometry } from '../core/Geometry';
+	/**
+	 * Constructs a new tube geometry.
+	 *
+	 * @param {Curve} [path=QuadraticBezierCurve3] - A 3D curve defining the path of the tube.
+	 * @param {number} [tubularSegments=64] - The number of segments that make up the tube.
+	 * @param {number} [radius=1] -The radius of the tube.
+	 * @param {number} [radialSegments=8] - The number of segments that make up the cross-section.
+	 * @param {boolean} [closed=false] - Whether the tube is closed or not.
+	 */
+	constructor( path = new Curves[ 'QuadraticBezierCurve3' ]( new Vector3( - 1, - 1, 0 ), new Vector3( - 1, 1, 0 ), new Vector3( 1, 1, 0 ) ), tubularSegments = 64, radius = 1, radialSegments = 8, closed = false ) {
 
-function TubeGeometry( path, tubularSegments, radius, radialSegments, closed, taper ) {
+		super();
 
-	Geometry.call( this );
+		this.type = 'TubeGeometry';
 
-	this.type = 'TubeGeometry';
+		/**
+		 * Holds the constructor parameters that have been
+		 * used to generate the geometry. Any modification
+		 * after instantiation does not change the geometry.
+		 *
+		 * @type {Object}
+		 */
+		this.parameters = {
+			path: path,
+			tubularSegments: tubularSegments,
+			radius: radius,
+			radialSegments: radialSegments,
+			closed: closed
+		};
 
-	this.parameters = {
-		path: path,
-		tubularSegments: tubularSegments,
-		radius: radius,
-		radialSegments: radialSegments,
-		closed: closed
-	};
+		const frames = path.computeFrenetFrames( tubularSegments, closed );
 
-	if ( taper !== undefined ) console.warn( 'THREE.TubeGeometry: taper has been removed.' );
+		// expose internals
 
-	var bufferGeometry = new TubeBufferGeometry( path, tubularSegments, radius, radialSegments, closed );
+		this.tangents = frames.tangents;
+		this.normals = frames.normals;
+		this.binormals = frames.binormals;
 
-	// expose internals
+		// helper variables
 
-	this.tangents = bufferGeometry.tangents;
-	this.normals = bufferGeometry.normals;
-	this.binormals = bufferGeometry.binormals;
+		const vertex = new Vector3();
+		const normal = new Vector3();
+		const uv = new Vector2();
+		let P = new Vector3();
 
-	// create geometry
+		// buffer
 
-	this.fromBufferGeometry( bufferGeometry );
-	this.mergeVertices();
+		const vertices = [];
+		const normals = [];
+		const uvs = [];
+		const indices = [];
 
-}
+		// create buffer data
 
-TubeGeometry.prototype = Object.create( Geometry.prototype );
-TubeGeometry.prototype.constructor = TubeGeometry;
+		generateBufferData();
 
-/**
- * @author Mugen87 / https://github.com/Mugen87
- */
+		// build geometry
 
-import { Float32BufferAttribute } from '../core/BufferAttribute';
-import { BufferGeometry } from '../core/BufferGeometry';
-import { Vector2 } from '../math/Vector2';
-import { Vector3 } from '../math/Vector3';
+		this.setIndex( indices );
+		this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+		this.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
+		this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
 
-function TubeBufferGeometry( path, tubularSegments, radius, radialSegments, closed ) {
+		// functions
 
-	BufferGeometry.call( this );
+		function generateBufferData() {
 
-	this.type = 'TubeBufferGeometry';
+			for ( let i = 0; i < tubularSegments; i ++ ) {
 
-	this.parameters = {
-		path: path,
-		tubularSegments: tubularSegments,
-		radius: radius,
-		radialSegments: radialSegments,
-		closed: closed
-	};
+				generateSegment( i );
 
-	tubularSegments = tubularSegments || 64;
-	radius = radius || 1;
-	radialSegments = radialSegments || 8;
-	closed = closed || false;
+			}
 
-	var frames = path.computeFrenetFrames( tubularSegments, closed );
+			// if the geometry is not closed, generate the last row of vertices and normals
+			// at the regular position on the given path
+			//
+			// if the geometry is closed, duplicate the first row of vertices and normals (uvs will differ)
 
-	// expose internals
+			generateSegment( ( closed === false ) ? tubularSegments : 0 );
 
-	this.tangents = frames.tangents;
-	this.normals = frames.normals;
-	this.binormals = frames.binormals;
+			// uvs are generated in a separate function.
+			// this makes it easy compute correct values for closed geometries
 
-	// helper variables
+			generateUVs();
 
-	var vertex = new Vector3();
-	var normal = new Vector3();
-	var uv = new Vector2();
+			// finally create faces
 
-	var i, j;
-
-	// buffer
-
-	var vertices = [];
-	var normals = [];
-	var uvs = [];
-	var indices = [];
-
-	// create buffer data
-
-	generateBufferData();
-
-	// build geometry
-
-	this.setIndex( indices );
-	this.addAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
-	this.addAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
-	this.addAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
-
-	// functions
-
-	function generateBufferData() {
-
-		for ( i = 0; i < tubularSegments; i ++ ) {
-
-			generateSegment( i );
+			generateIndices();
 
 		}
 
-		// if the geometry is not closed, generate the last row of vertices and normals
-		// at the regular position on the given path
-		//
-		// if the geometry is closed, duplicate the first row of vertices and normals (uvs will differ)
+		function generateSegment( i ) {
 
-		generateSegment( ( closed === false ) ? tubularSegments : 0 );
+			// we use getPointAt to sample evenly distributed points from the given path
 
-		// uvs are generated in a separate function.
-		// this makes it easy compute correct values for closed geometries
+			P = path.getPointAt( i / tubularSegments, P );
 
-		generateUVs();
+			// retrieve corresponding normal and binormal
 
-		// finally create faces
+			const N = frames.normals[ i ];
+			const B = frames.binormals[ i ];
 
-		generateIndices();
+			// generate normals and vertices for the current segment
 
-	}
+			for ( let j = 0; j <= radialSegments; j ++ ) {
 
-	function generateSegment( i ) {
+				const v = j / radialSegments * Math.PI * 2;
 
-		// we use getPointAt to sample evenly distributed points from the given path
+				const sin = Math.sin( v );
+				const cos = - Math.cos( v );
 
-		var P = path.getPointAt( i / tubularSegments );
+				// normal
 
-		// retrieve corresponding normal and binormal
+				normal.x = ( cos * N.x + sin * B.x );
+				normal.y = ( cos * N.y + sin * B.y );
+				normal.z = ( cos * N.z + sin * B.z );
+				normal.normalize();
 
-		var N = frames.normals[ i ];
-		var B = frames.binormals[ i ];
+				normals.push( normal.x, normal.y, normal.z );
 
-		// generate normals and vertices for the current segment
+				// vertex
 
-		for ( j = 0; j <= radialSegments; j ++ ) {
+				vertex.x = P.x + radius * normal.x;
+				vertex.y = P.y + radius * normal.y;
+				vertex.z = P.z + radius * normal.z;
 
-			var v = j / radialSegments * Math.PI * 2;
+				vertices.push( vertex.x, vertex.y, vertex.z );
 
-			var sin =   Math.sin( v );
-			var cos = - Math.cos( v );
-
-			// normal
-
-			normal.x = ( cos * N.x + sin * B.x );
-			normal.y = ( cos * N.y + sin * B.y );
-			normal.z = ( cos * N.z + sin * B.z );
-			normal.normalize();
-
-			normals.push( normal.x, normal.y, normal.z );
-
-			// vertex
-
-			vertex.x = P.x + radius * normal.x;
-			vertex.y = P.y + radius * normal.y;
-			vertex.z = P.z + radius * normal.z;
-
-			vertices.push( vertex.x, vertex.y, vertex.z );
+			}
 
 		}
 
-	}
+		function generateIndices() {
 
-	function generateIndices() {
+			for ( let j = 1; j <= tubularSegments; j ++ ) {
 
-		for ( j = 1; j <= tubularSegments; j ++ ) {
+				for ( let i = 1; i <= radialSegments; i ++ ) {
 
-			for ( i = 1; i <= radialSegments; i ++ ) {
+					const a = ( radialSegments + 1 ) * ( j - 1 ) + ( i - 1 );
+					const b = ( radialSegments + 1 ) * j + ( i - 1 );
+					const c = ( radialSegments + 1 ) * j + i;
+					const d = ( radialSegments + 1 ) * ( j - 1 ) + i;
 
-				var a = ( radialSegments + 1 ) * ( j - 1 ) + ( i - 1 );
-				var b = ( radialSegments + 1 ) * j + ( i - 1 );
-				var c = ( radialSegments + 1 ) * j + i;
-				var d = ( radialSegments + 1 ) * ( j - 1 ) + i;
+					// faces
 
-				// faces
+					indices.push( a, b, d );
+					indices.push( b, c, d );
 
-				indices.push( a, b, d );
-				indices.push( b, c, d );
+				}
+
+			}
+
+		}
+
+		function generateUVs() {
+
+			for ( let i = 0; i <= tubularSegments; i ++ ) {
+
+				for ( let j = 0; j <= radialSegments; j ++ ) {
+
+					uv.x = i / tubularSegments;
+					uv.y = j / radialSegments;
+
+					uvs.push( uv.x, uv.y );
+
+				}
 
 			}
 
@@ -197,26 +206,48 @@ function TubeBufferGeometry( path, tubularSegments, radius, radialSegments, clos
 
 	}
 
-	function generateUVs() {
+	copy( source ) {
 
-		for ( i = 0; i <= tubularSegments; i ++ ) {
+		super.copy( source );
 
-			for ( j = 0; j <= radialSegments; j ++ ) {
+		this.parameters = Object.assign( {}, source.parameters );
 
-				uv.x = i / tubularSegments;
-				uv.y = j / radialSegments;
+		return this;
 
-				uvs.push( uv.x, uv.y );
+	}
 
-			}
+	toJSON() {
 
-		}
+		const data = super.toJSON();
+
+		data.path = this.parameters.path.toJSON();
+
+		return data;
+
+	}
+
+	/**
+	 * Factory method for creating an instance of this class from the given
+	 * JSON object.
+	 *
+	 * @param {Object} data - A JSON object representing the serialized geometry.
+	 * @return {TubeGeometry} A new instance.
+	 */
+	static fromJSON( data ) {
+
+		// This only works for built-in curves (e.g. CatmullRomCurve3).
+		// User defined curves or instances of CurvePath will not be deserialized.
+		return new TubeGeometry(
+			new Curves[ data.path.type ]().fromJSON( data.path ),
+			data.tubularSegments,
+			data.radius,
+			data.radialSegments,
+			data.closed
+		);
 
 	}
 
 }
 
-TubeBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
-TubeBufferGeometry.prototype.constructor = TubeBufferGeometry;
 
-export { TubeGeometry, TubeBufferGeometry };
+export { TubeGeometry };

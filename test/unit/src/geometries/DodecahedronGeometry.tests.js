@@ -1,34 +1,65 @@
-(function () {
+import { DodecahedronGeometry } from '../../../../src/geometries/DodecahedronGeometry.js';
 
-	'use strict';
+import { PolyhedronGeometry } from '../../../../src/geometries/PolyhedronGeometry.js';
+import { runStdGeometryTests } from '../../utils/qunit-utils.js';
 
-	var parameters = {
-		radius: 10,
-		detail: undefined
-	};
+export default QUnit.module( 'Geometries', () => {
 
-	var geometries;
+	QUnit.module( 'DodecahedronGeometry', ( hooks ) => {
 
-	QUnit.module( "Extras - Geometries - DodecahedronGeometry", {
+		let geometries = undefined;
+		hooks.beforeEach( function () {
 
-		beforeEach: function() {
+			const parameters = {
+				radius: 10,
+				detail: undefined
+			};
 
 			geometries = [
-
-				new THREE.DodecahedronGeometry(),
-				new THREE.DodecahedronGeometry( parameters.radius ),
-				new THREE.DodecahedronGeometry( parameters.radius, parameters.detail ),
-
+				new DodecahedronGeometry(),
+				new DodecahedronGeometry( parameters.radius ),
+				new DodecahedronGeometry( parameters.radius, parameters.detail ),
 			];
 
-		}
+		} );
 
-	});
+		// INHERITANCE
+		QUnit.test( 'Extending', ( assert ) => {
 
-	QUnit.test( "standard geometry tests", function( assert ) {
+			const object = new DodecahedronGeometry();
+			assert.strictEqual(
+				object instanceof PolyhedronGeometry, true,
+				'DodecahedronGeometry extends from PolyhedronGeometry'
+			);
 
-		runStdGeometryTests( assert, geometries );
+		} );
 
-	});
+		// INSTANCING
+		QUnit.test( 'Instancing', ( assert ) => {
 
-})();
+			const object = new DodecahedronGeometry();
+			assert.ok( object, 'Can instantiate a DodecahedronGeometry.' );
+
+		} );
+
+		// PROPERTIES
+		QUnit.test( 'type', ( assert ) => {
+
+			const object = new DodecahedronGeometry();
+			assert.ok(
+				object.type === 'DodecahedronGeometry',
+				'DodecahedronGeometry.type should be DodecahedronGeometry'
+			);
+
+		} );
+
+		// OTHERS
+		QUnit.test( 'Standard geometry tests', ( assert ) => {
+
+			runStdGeometryTests( assert, geometries );
+
+		} );
+
+	} );
+
+} );

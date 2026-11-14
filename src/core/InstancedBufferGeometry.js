@@ -1,68 +1,60 @@
-import { BufferGeometry } from './BufferGeometry';
+import { BufferGeometry } from './BufferGeometry.js';
 
 /**
- * @author benaadams / https://twitter.com/ben_a_adams
+ * An instanced version of a geometry.
  */
+class InstancedBufferGeometry extends BufferGeometry {
 
-function InstancedBufferGeometry() {
+	/**
+	 * Constructs a new instanced buffer geometry.
+	 */
+	constructor() {
 
-	BufferGeometry.call( this );
+		super();
 
-	this.type = 'InstancedBufferGeometry';
-	this.maxInstancedCount = undefined;
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isInstancedBufferGeometry = true;
 
-}
+		this.type = 'InstancedBufferGeometry';
 
-InstancedBufferGeometry.prototype = Object.assign( Object.create( BufferGeometry.prototype ), {
+		/**
+		 * The instance count.
+		 *
+		 * @type {number}
+		 * @default Infinity
+		 */
+		this.instanceCount = Infinity;
 
-	constructor: InstancedBufferGeometry,
+	}
 
-	isInstancedBufferGeometry: true,
+	copy( source ) {
 
-	addGroup: function ( start, count, materialIndex ) {
+		super.copy( source );
 
-		this.groups.push( {
-
-			start: start,
-			count: count,
-			materialIndex: materialIndex
-
-		} );
-
-	},
-
-	copy: function ( source ) {
-
-		var index = source.index;
-
-		if ( index !== null ) {
-
-			this.setIndex( index.clone() );
-
-		}
-
-		var attributes = source.attributes;
-
-		for ( var name in attributes ) {
-
-			var attribute = attributes[ name ];
-			this.addAttribute( name, attribute.clone() );
-
-		}
-
-		var groups = source.groups;
-
-		for ( var i = 0, l = groups.length; i < l; i ++ ) {
-
-			var group = groups[ i ];
-			this.addGroup( group.start, group.count, group.materialIndex );
-
-		}
+		this.instanceCount = source.instanceCount;
 
 		return this;
 
 	}
 
-} );
+	toJSON() {
+
+		const data = super.toJSON();
+
+		data.instanceCount = this.instanceCount;
+
+		data.isInstancedBufferGeometry = true;
+
+		return data;
+
+	}
+
+}
 
 export { InstancedBufferGeometry };

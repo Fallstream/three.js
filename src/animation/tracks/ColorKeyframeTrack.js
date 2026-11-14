@@ -1,38 +1,36 @@
-import { KeyframeTrackPrototype } from '../KeyframeTrackPrototype';
-import { KeyframeTrackConstructor } from '../KeyframeTrackConstructor';
+import { KeyframeTrack } from '../KeyframeTrack.js';
 
 /**
+ * A track for color keyframe values.
  *
- * A Track of keyframe values that represent color.
- *
- *
- * @author Ben Houston / http://clara.io/
- * @author David Sarno / http://lighthaus.us/
- * @author tschw
+ * @augments KeyframeTrack
  */
+class ColorKeyframeTrack extends KeyframeTrack {
 
-function ColorKeyframeTrack( name, times, values, interpolation ) {
+	/**
+	 * Constructs a new color keyframe track.
+	 *
+	 * @param {string} name - The keyframe track's name.
+	 * @param {Array<number>} times - A list of keyframe times.
+	 * @param {Array<number>} values - A list of keyframe values.
+	 * @param {(InterpolateLinear|InterpolateDiscrete|InterpolateSmooth)} [interpolation] - The interpolation type.
+	 */
+	constructor( name, times, values, interpolation ) {
 
-	KeyframeTrackConstructor.call( this, name, times, values, interpolation );
+		super( name, times, values, interpolation );
+
+	}
 
 }
 
-ColorKeyframeTrack.prototype =
-		Object.assign( Object.create( KeyframeTrackPrototype ), {
-
-	constructor: ColorKeyframeTrack,
-
-	ValueTypeName: 'color'
-
-	// ValueBufferType is inherited
-
-	// DefaultInterpolation is inherited
-
-
-	// Note: Very basic implementation and nothing special yet.
-	// However, this is the place for color space parameterization.
-
-} );
-
+/**
+ * The value type name.
+ *
+ * @type {string}
+ * @default 'color'
+ */
+ColorKeyframeTrack.prototype.ValueTypeName = 'color';
+// ValueBufferType is inherited
+// DefaultInterpolation is inherited
 
 export { ColorKeyframeTrack };

@@ -1,62 +1,86 @@
-import { Object3D } from '../core/Object3D';
-import { Color } from '../math/Color';
+import { Object3D } from '../core/Object3D.js';
+import { Color } from '../math/Color.js';
 
 /**
- * @author mrdoob / http://mrdoob.com/
- * @author alteredq / http://alteredqualia.com/
+ * Abstract base class for lights - all other light types inherit the
+ * properties and methods described here.
+ *
+ * @abstract
+ * @augments Object3D
  */
+class Light extends Object3D {
 
-function Light( color, intensity ) {
+	/**
+	 * Registers the node class that `WebGPURenderer` uses to shade lights of this type.
+	 *
+	 * @param {AnalyticLightNode.constructor} lightNodeClass - The light node class.
+	 */
+	static registerNode( lightNodeClass ) {
 
-	Object3D.call( this );
+		this.prototype._lightNode = lightNodeClass;
 
-	this.type = 'Light';
+	}
 
-	this.color = new Color( color );
-	this.intensity = intensity !== undefined ? intensity : 1;
+	/**
+	 * Constructs a new light.
+	 *
+	 * @param {(number|Color|string)} [color=0xffffff] - The light's color.
+	 * @param {number} [intensity=1] - The light's strength/intensity.
+	 */
+	constructor( color, intensity = 1 ) {
 
-	this.receiveShadow = undefined;
+		super();
 
-}
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isLight = true;
 
-Light.prototype = Object.assign( Object.create( Object3D.prototype ), {
+		this.type = 'Light';
 
-	constructor: Light,
+		/**
+		 * The light's color.
+		 *
+		 * @type {Color}
+		 */
+		this.color = new Color( color );
 
-	isLight: true,
+		/**
+		 * The light's intensity.
+		 *
+		 * @type {number}
+		 * @default 1
+		 */
+		this.intensity = intensity;
 
-	copy: function ( source ) {
+	}
 
-		Object3D.prototype.copy.call( this, source );
+	copy( source, recursive ) {
+
+		super.copy( source, recursive );
 
 		this.color.copy( source.color );
 		this.intensity = source.intensity;
 
 		return this;
 
-	},
+	}
 
-	toJSON: function ( meta ) {
+	toJSON( meta ) {
 
-		var data = Object3D.prototype.toJSON.call( this, meta );
+		const data = super.toJSON( meta );
 
 		data.object.color = this.color.getHex();
 		data.object.intensity = this.intensity;
-
-		if ( this.groundColor !== undefined ) data.object.groundColor = this.groundColor.getHex();
-
-		if ( this.distance !== undefined ) data.object.distance = this.distance;
-		if ( this.angle !== undefined ) data.object.angle = this.angle;
-		if ( this.decay !== undefined ) data.object.decay = this.decay;
-		if ( this.penumbra !== undefined ) data.object.penumbra = this.penumbra;
-
-		if ( this.shadow !== undefined ) data.object.shadow = this.shadow.toJSON();
 
 		return data;
 
 	}
 
-} );
-
+}
 
 export { Light };

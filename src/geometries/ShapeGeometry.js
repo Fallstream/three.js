@@ -1,121 +1,114 @@
-/**
- * @author jonobr1 / http://jonobr1.com
- */
-
-import { Geometry } from '../core/Geometry';
-
-function ShapeGeometry( shapes, curveSegments ) {
-
-	Geometry.call( this );
-
-	this.type = 'ShapeGeometry';
-
-	if ( typeof curveSegments === 'object' ) {
-
-		console.warn( 'THREE.ShapeGeometry: Options parameter has been removed.' );
-
-		curveSegments = curveSegments.curveSegments;
-
-	}
-
-	this.parameters = {
-		shapes: shapes,
-		curveSegments: curveSegments
-	};
-
-	this.fromBufferGeometry( new ShapeBufferGeometry( shapes, curveSegments ) );
-	this.mergeVertices();
-
-}
-
-ShapeGeometry.prototype = Object.create( Geometry.prototype );
-ShapeGeometry.prototype.constructor = ShapeGeometry;
+import { BufferGeometry } from '../core/BufferGeometry.js';
+import { Float32BufferAttribute } from '../core/BufferAttribute.js';
+import { Shape } from '../extras/core/Shape.js';
+import { ShapeUtils } from '../extras/ShapeUtils.js';
+import { Vector2 } from '../math/Vector2.js';
 
 /**
- * @author Mugen87 / https://github.com/Mugen87
+ * Creates an one-sided polygonal geometry from one or more path shapes.
+ *
+ * ```js
+ * const arcShape = new THREE.Shape()
+ *	.moveTo( 5, 1 )
+ *	.absarc( 1, 1, 4, 0, Math.PI * 2, false );
+ *
+ * const geometry = new THREE.ShapeGeometry( arcShape );
+ * const material = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide } );
+ * const mesh = new THREE.Mesh( geometry, material ) ;
+ * scene.add( mesh );
+ * ```
+ *
+ * @augments BufferGeometry
+ * @demo scenes/geometry-browser.html#ShapeGeometry
  */
+class ShapeGeometry extends BufferGeometry {
 
-import { Float32BufferAttribute } from '../core/BufferAttribute';
-import { BufferGeometry } from '../core/BufferGeometry';
-import { ShapeUtils } from '../extras/ShapeUtils';
+	/**
+	 * Constructs a new shape geometry.
+	 *
+	 * @param {Shape|Array<Shape>} [shapes] - A shape or an array of shapes.
+	 * @param {number} [curveSegments=12] - Number of segments per shape.
+	 */
+	constructor( shapes = new Shape( [ new Vector2( 0, 0.5 ), new Vector2( - 0.5, - 0.5 ), new Vector2( 0.5, - 0.5 ) ] ), curveSegments = 12 ) {
 
-function ShapeBufferGeometry( shapes, curveSegments ) {
+		super();
 
-	BufferGeometry.call( this );
+		this.type = 'ShapeGeometry';
 
-	this.type = 'ShapeBufferGeometry';
+		/**
+		 * Holds the constructor parameters that have been
+		 * used to generate the geometry. Any modification
+		 * after instantiation does not change the geometry.
+		 *
+		 * @type {Object}
+		 */
+		this.parameters = {
+			shapes: shapes,
+			curveSegments: curveSegments
+		};
 
-	this.parameters = {
-		shapes: shapes,
-		curveSegments: curveSegments
-	};
+		// buffers
 
-	curveSegments = curveSegments || 12;
+		const indices = [];
+		const vertices = [];
+		const normals = [];
+		const uvs = [];
 
-	// buffers
+		// helper variables
 
-	var indices = [];
-	var vertices = [];
-	var normals = [];
-	var uvs = [];
+		let groupStart = 0;
+		let groupCount = 0;
 
-	// helper variables
+		// allow single and array values for "shapes" parameter
 
-	var groupStart = 0;
-	var groupCount = 0;
+		if ( Array.isArray( shapes ) === false ) {
 
-	// allow single and array values for "shapes" parameter
+			addShape( shapes );
 
-	if ( Array.isArray( shapes ) === false ) {
+		} else {
 
-		addShape( shapes );
+			for ( let i = 0; i < shapes.length; i ++ ) {
 
-	} else {
+				addShape( shapes[ i ] );
 
-		for ( var i = 0; i < shapes.length; i ++ ) {
+				this.addGroup( groupStart, groupCount, i ); // enables MultiMaterial support
 
-			addShape( shapes[ i ] );
+				groupStart += groupCount;
+				groupCount = 0;
 
-			this.addGroup( groupStart, groupCount, i ); // enables MultiMaterial support
-
-			groupStart += groupCount;
-			groupCount = 0;
+			}
 
 		}
 
-	}
+		// build geometry
 
-	// build geometry
-
-	this.setIndex( indices );
-	this.addAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
-	this.addAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
-	this.addAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
+		this.setIndex( indices );
+		this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+		this.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
+		this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
 
 
-	// helper functions
+		// helper functions
 
-	function addShape( shape ) {
+		function addShape( shape ) {
 
-		var i, l, shapeHole;
+			const indexOffset = vertices.length / 3;
+			const points = shape.extractPoints( curveSegments );
 
-		var indexOffset = vertices.length / 3;
-		var points = shape.extractPoints( curveSegments );
+			let shapeVertices = points.shape;
+			const shapeHoles = points.holes;
 
-		var shapeVertices = points.shape;
-		var shapeHoles = points.holes;
+			// check direction of vertices
 
-		// check direction of vertices
+			if ( ShapeUtils.isClockWise( shapeVertices ) === false ) {
 
-		if ( ShapeUtils.isClockWise( shapeVertices ) === false ) {
+				shapeVertices = shapeVertices.reverse();
 
-			shapeVertices = shapeVertices.reverse();
+			}
 
-			// also check if holes are in the opposite direction
+			for ( let i = 0, l = shapeHoles.length; i < l; i ++ ) {
 
-			for ( i = 0, l = shapeHoles.length; i < l; i ++ ) {
-
-				shapeHole = shapeHoles[ i ];
+				const shapeHole = shapeHoles[ i ];
 
 				if ( ShapeUtils.isClockWise( shapeHole ) === true ) {
 
@@ -125,51 +118,116 @@ function ShapeBufferGeometry( shapes, curveSegments ) {
 
 			}
 
-		}
+			const faces = ShapeUtils.triangulateShape( shapeVertices, shapeHoles );
 
-		var faces = ShapeUtils.triangulateShape( shapeVertices, shapeHoles );
+			// join vertices of inner and outer paths to a single array
 
-		// join vertices of inner and outer paths to a single array
+			for ( let i = 0, l = shapeHoles.length; i < l; i ++ ) {
 
-		for ( i = 0, l = shapeHoles.length; i < l; i ++ ) {
+				const shapeHole = shapeHoles[ i ];
+				shapeVertices = shapeVertices.concat( shapeHole );
 
-			shapeHole = shapeHoles[ i ];
-			shapeVertices = shapeVertices.concat( shapeHole );
+			}
 
-		}
+			// vertices, normals, uvs
 
-		// vertices, normals, uvs
+			for ( let i = 0, l = shapeVertices.length; i < l; i ++ ) {
 
-		for ( i = 0, l = shapeVertices.length; i < l; i ++ ) {
+				const vertex = shapeVertices[ i ];
 
-			var vertex = shapeVertices[ i ];
+				vertices.push( vertex.x, vertex.y, 0 );
+				normals.push( 0, 0, 1 );
+				uvs.push( vertex.x, vertex.y ); // world uvs
 
-			vertices.push( vertex.x, vertex.y, 0 );
-			normals.push( 0, 0, 1 );
-			uvs.push( vertex.x, vertex.y ); // world uvs
+			}
 
-		}
+			// indices
 
-		// incides
+			for ( let i = 0, l = faces.length; i < l; i ++ ) {
 
-		for ( i = 0, l = faces.length; i < l; i ++ ) {
+				const face = faces[ i ];
 
-			var face = faces[ i ];
+				const a = face[ 0 ] + indexOffset;
+				const b = face[ 1 ] + indexOffset;
+				const c = face[ 2 ] + indexOffset;
 
-			var a = face[ 0 ] + indexOffset;
-			var b = face[ 1 ] + indexOffset;
-			var c = face[ 2 ] + indexOffset;
+				indices.push( a, b, c );
+				groupCount += 3;
 
-			indices.push( a, b, c );
-			groupCount += 3;
+			}
 
 		}
 
 	}
 
+	copy( source ) {
+
+		super.copy( source );
+
+		this.parameters = Object.assign( {}, source.parameters );
+
+		return this;
+
+	}
+
+	toJSON() {
+
+		const data = super.toJSON();
+
+		const shapes = this.parameters.shapes;
+
+		return toJSON( shapes, data );
+
+	}
+
+	/**
+	 * Factory method for creating an instance of this class from the given
+	 * JSON object.
+	 *
+	 * @param {Object} data - A JSON object representing the serialized geometry.
+	 * @param {Array<Shape>} shapes - An array of shapes.
+	 * @return {ShapeGeometry} A new instance.
+	 */
+	static fromJSON( data, shapes ) {
+
+		const geometryShapes = [];
+
+		for ( let j = 0, jl = data.shapes.length; j < jl; j ++ ) {
+
+			const shape = shapes[ data.shapes[ j ] ];
+
+			geometryShapes.push( shape );
+
+		}
+
+		return new ShapeGeometry( geometryShapes, data.curveSegments );
+
+	}
+
 }
 
-ShapeBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
-ShapeBufferGeometry.prototype.constructor = ShapeBufferGeometry;
+function toJSON( shapes, data ) {
 
-export { ShapeGeometry, ShapeBufferGeometry };
+	data.shapes = [];
+
+	if ( Array.isArray( shapes ) ) {
+
+		for ( let i = 0, l = shapes.length; i < l; i ++ ) {
+
+			const shape = shapes[ i ];
+
+			data.shapes.push( shape.uuid );
+
+		}
+
+	} else {
+
+		data.shapes.push( shapes.uuid );
+
+	}
+
+	return data;
+
+}
+
+export { ShapeGeometry };

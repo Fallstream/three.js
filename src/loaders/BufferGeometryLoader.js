@@ -1,78 +1,227 @@
-import { Sphere } from '../math/Sphere';
-import { Vector3 } from '../math/Vector3';
-import { BufferAttribute } from '../core/BufferAttribute';
-import { BufferGeometry } from '../core/BufferGeometry';
-import { FileLoader } from './FileLoader';
-import { DefaultLoadingManager } from './LoadingManager';
+import { Sphere } from '../math/Sphere.js';
+import { BufferAttribute } from '../core/BufferAttribute.js';
+import { BufferGeometry } from '../core/BufferGeometry.js';
+import { FileLoader } from './FileLoader.js';
+import { Loader } from './Loader.js';
+import { InstancedBufferGeometry } from '../core/InstancedBufferGeometry.js';
+import { InstancedBufferAttribute } from '../core/InstancedBufferAttribute.js';
+import { InterleavedBufferAttribute } from '../core/InterleavedBufferAttribute.js';
+import { InterleavedBuffer } from '../core/InterleavedBuffer.js';
+import { getTypedArray, error } from '../utils.js';
 
 /**
- * @author mrdoob / http://mrdoob.com/
+ * Class for loading geometries. The files are internally
+ * loaded via {@link FileLoader}.
+ *
+ * ```js
+ * const loader = new THREE.BufferGeometryLoader();
+ * const geometry = await loader.loadAsync( 'models/json/pressure.json' );
+ *
+ * const material = new THREE.MeshBasicMaterial( { color: 0xF5F5F5 } );
+ * const object = new THREE.Mesh( geometry, material );
+ * scene.add( object );
+ * ```
+ *
+ * @augments Loader
  */
+class BufferGeometryLoader extends Loader {
 
-function BufferGeometryLoader( manager ) {
+	/**
+	 * Constructs a new geometry loader.
+	 *
+	 * @param {LoadingManager} [manager] - The loading manager.
+	 */
+	constructor( manager ) {
 
-	this.manager = ( manager !== undefined ) ? manager : DefaultLoadingManager;
+		super( manager );
 
-}
+	}
 
-Object.assign( BufferGeometryLoader.prototype, {
+	/**
+	 * Starts loading from the given URL and pass the loaded geometry to the `onLoad()` callback.
+	 *
+	 * @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	 * @param {function(BufferGeometry)} onLoad - Executed when the loading process has been finished.
+	 * @param {onProgressCallback} onProgress - Executed while the loading is in progress.
+	 * @param {onErrorCallback} onError - Executed when errors occur.
+	 */
+	load( url, onLoad, onProgress, onError ) {
 
-	load: function ( url, onLoad, onProgress, onError ) {
+		const scope = this;
 
-		var scope = this;
-
-		var loader = new FileLoader( scope.manager );
+		const loader = new FileLoader( scope.manager );
+		loader.setPriority( scope.priority );
+		loader.setCache( scope.cache );
+		loader.setPath( scope.path );
+		loader.setRequestHeader( scope.requestHeader );
+		loader.setWithCredentials( scope.withCredentials );
 		loader.load( url, function ( text ) {
 
-			onLoad( scope.parse( JSON.parse( text ) ) );
+			try {
+
+				onLoad( scope.parse( JSON.parse( text ) ) );
+
+			} catch ( e ) {
+
+				if ( onError ) {
+
+					onError( e );
+
+				} else {
+
+					error( e );
+
+				}
+
+				scope.manager.itemError( url );
+
+			}
 
 		}, onProgress, onError );
 
-	},
+	}
 
-	parse: function ( json ) {
+	/**
+	 * Parses the given JSON object and returns a geometry.
+	 *
+	 * @param {Object} json - The serialized geometry.
+	 * @return {BufferGeometry} The parsed geometry.
+	 */
+	parse( json ) {
 
-		var geometry = new BufferGeometry();
+		const interleavedBufferMap = {};
+		const arrayBufferMap = {};
 
-		var index = json.data.index;
+		function getInterleavedBuffer( json, uuid ) {
 
-		var TYPED_ARRAYS = {
-			'Int8Array': Int8Array,
-			'Uint8Array': Uint8Array,
-			'Uint8ClampedArray': Uint8ClampedArray,
-			'Int16Array': Int16Array,
-			'Uint16Array': Uint16Array,
-			'Int32Array': Int32Array,
-			'Uint32Array': Uint32Array,
-			'Float32Array': Float32Array,
-			'Float64Array': Float64Array
-		};
+			if ( interleavedBufferMap[ uuid ] !== undefined ) return interleavedBufferMap[ uuid ];
+
+			const interleavedBuffers = json.interleavedBuffers;
+			const interleavedBuffer = interleavedBuffers[ uuid ];
+
+			const buffer = getArrayBuffer( json, interleavedBuffer.buffer );
+
+			const array = getTypedArray( interleavedBuffer.type, buffer );
+			const ib = new InterleavedBuffer( array, interleavedBuffer.stride );
+			ib.uuid = interleavedBuffer.uuid;
+
+			if ( interleavedBuffer.usage !== undefined ) ib.setUsage( interleavedBuffer.usage );
+
+			interleavedBufferMap[ uuid ] = ib;
+
+			return ib;
+
+		}
+
+		function getArrayBuffer( json, uuid ) {
+
+			if ( arrayBufferMap[ uuid ] !== undefined ) return arrayBufferMap[ uuid ];
+
+			const arrayBuffers = json.arrayBuffers;
+			const arrayBuffer = arrayBuffers[ uuid ];
+
+			const ab = new Uint32Array( arrayBuffer ).buffer;
+
+			arrayBufferMap[ uuid ] = ab;
+
+			return ab;
+
+		}
+
+		const geometry = json.isInstancedBufferGeometry ? new InstancedBufferGeometry() : new BufferGeometry();
+
+		const index = json.data.index;
 
 		if ( index !== undefined ) {
 
-			var typedArray = new TYPED_ARRAYS[ index.type ]( index.array );
+			const typedArray = getTypedArray( index.type, index.array );
 			geometry.setIndex( new BufferAttribute( typedArray, 1 ) );
 
 		}
 
-		var attributes = json.data.attributes;
+		const attributes = json.data.attributes;
 
-		for ( var key in attributes ) {
+		for ( const key in attributes ) {
 
-			var attribute = attributes[ key ];
-			var typedArray = new TYPED_ARRAYS[ attribute.type ]( attribute.array );
+			const attribute = attributes[ key ];
+			let bufferAttribute;
 
-			geometry.addAttribute( key, new BufferAttribute( typedArray, attribute.itemSize, attribute.normalized ) );
+			if ( attribute.isInterleavedBufferAttribute ) {
+
+				const interleavedBuffer = getInterleavedBuffer( json.data, attribute.data );
+				bufferAttribute = new InterleavedBufferAttribute( interleavedBuffer, attribute.itemSize, attribute.offset, attribute.normalized );
+
+			} else {
+
+				const typedArray = getTypedArray( attribute.type, attribute.array );
+				const bufferAttributeConstr = attribute.isInstancedBufferAttribute ? InstancedBufferAttribute : BufferAttribute;
+				bufferAttribute = new bufferAttributeConstr( typedArray, attribute.itemSize, attribute.normalized );
+
+			}
+
+			if ( attribute.name !== undefined ) bufferAttribute.name = attribute.name;
+			if ( attribute.usage !== undefined ) bufferAttribute.setUsage( attribute.usage );
+			if ( attribute.gpuType !== undefined ) bufferAttribute.gpuType = attribute.gpuType;
+
+			geometry.setAttribute( key, bufferAttribute );
 
 		}
 
-		var groups = json.data.groups || json.data.drawcalls || json.data.offsets;
+		const morphAttributes = json.data.morphAttributes;
+
+		if ( morphAttributes ) {
+
+			for ( const key in morphAttributes ) {
+
+				const attributeArray = morphAttributes[ key ];
+
+				const array = [];
+
+				for ( let i = 0, il = attributeArray.length; i < il; i ++ ) {
+
+					const attribute = attributeArray[ i ];
+					let bufferAttribute;
+
+					if ( attribute.isInterleavedBufferAttribute ) {
+
+						const interleavedBuffer = getInterleavedBuffer( json.data, attribute.data );
+						bufferAttribute = new InterleavedBufferAttribute( interleavedBuffer, attribute.itemSize, attribute.offset, attribute.normalized );
+
+					} else {
+
+						const typedArray = getTypedArray( attribute.type, attribute.array );
+						bufferAttribute = new BufferAttribute( typedArray, attribute.itemSize, attribute.normalized );
+
+					}
+
+					if ( attribute.name !== undefined ) bufferAttribute.name = attribute.name;
+					if ( attribute.usage !== undefined ) bufferAttribute.setUsage( attribute.usage );
+					if ( attribute.gpuType !== undefined ) bufferAttribute.gpuType = attribute.gpuType;
+					array.push( bufferAttribute );
+
+				}
+
+				geometry.morphAttributes[ key ] = array;
+
+			}
+
+		}
+
+		const morphTargetsRelative = json.data.morphTargetsRelative;
+
+		if ( morphTargetsRelative ) {
+
+			geometry.morphTargetsRelative = true;
+
+		}
+
+		const groups = json.data.groups || json.data.drawcalls || json.data.offsets;
 
 		if ( groups !== undefined ) {
 
-			for ( var i = 0, n = groups.length; i !== n; ++ i ) {
+			for ( let i = 0, n = groups.length; i !== n; ++ i ) {
 
-				var group = groups[ i ];
+				const group = groups[ i ];
 
 				geometry.addGroup( group.start, group.count, group.materialIndex );
 
@@ -80,27 +229,21 @@ Object.assign( BufferGeometryLoader.prototype, {
 
 		}
 
-		var boundingSphere = json.data.boundingSphere;
+		const boundingSphere = json.data.boundingSphere;
 
 		if ( boundingSphere !== undefined ) {
 
-			var center = new Vector3();
-
-			if ( boundingSphere.center !== undefined ) {
-
-				center.fromArray( boundingSphere.center );
-
-			}
-
-			geometry.boundingSphere = new Sphere( center, boundingSphere.radius );
+			geometry.boundingSphere = new Sphere().fromJSON( boundingSphere );
 
 		}
+
+		if ( json.name ) geometry.name = json.name;
+		if ( json.userData ) geometry.userData = json.userData;
 
 		return geometry;
 
 	}
 
-} );
-
+}
 
 export { BufferGeometryLoader };

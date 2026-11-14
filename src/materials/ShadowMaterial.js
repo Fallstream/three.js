@@ -1,46 +1,91 @@
-import { ShaderMaterial } from './ShaderMaterial';
-import { ShaderChunk } from '../renderers/shaders/ShaderChunk';
-import { UniformsLib } from '../renderers/shaders/UniformsLib';
-import { UniformsUtils } from '../renderers/shaders/UniformsUtils';
+import { Material } from './Material.js';
+import { Color } from '../math/Color.js';
 
 /**
- * @author mrdoob / http://mrdoob.com/
+ * This material can receive shadows, but otherwise is completely transparent.
+ *
+ * ```js
+ * const geometry = new THREE.PlaneGeometry( 2000, 2000 );
+ * geometry.rotateX( - Math.PI / 2 );
+ *
+ * const material = new THREE.ShadowMaterial();
+ * material.opacity = 0.2;
+ *
+ * const plane = new THREE.Mesh( geometry, material );
+ * plane.position.y = -200;
+ * plane.receiveShadow = true;
+ * scene.add( plane );
+ * ```
+ *
+ * @augments Material
  */
+class ShadowMaterial extends Material {
 
-function ShadowMaterial() {
+	/**
+	 * Constructs a new shadow material.
+	 *
+	 * @param {Object} [parameters] - An object with one or more properties
+	 * defining the material's appearance. Any property of the material
+	 * (including any property from inherited materials) can be passed
+	 * in here. Color values can be passed any type of value accepted
+	 * by {@link Color#set}.
+	 */
+	constructor( parameters ) {
 
-	ShaderMaterial.call( this, {
-		uniforms: UniformsUtils.merge( [
-			UniformsLib.lights,
-			{
-				opacity: { value: 1.0 }
-			}
-		] ),
-		vertexShader: ShaderChunk[ 'shadow_vert' ],
-		fragmentShader: ShaderChunk[ 'shadow_frag' ]
-	} );
+		super();
 
-	this.lights = true;
-	this.transparent = true;
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isShadowMaterial = true;
 
-	Object.defineProperties( this, {
-		opacity: {
-			enumerable: true,
-			get: function () {
-				return this.uniforms.opacity.value;
-			},
-			set: function ( value ) {
-				this.uniforms.opacity.value = value;
-			}
-		}
-	} );
+		this.type = 'ShadowMaterial';
+
+		/**
+		 * Color of the material.
+		 *
+		 * @type {Color}
+		 * @default (0,0,0)
+		 */
+		this.color = new Color( 0x000000 );
+
+		/**
+		 * Overwritten since shadow materials are transparent
+		 * by default.
+		 *
+		 * @type {boolean}
+		 * @default true
+		 */
+		this.transparent = true;
+
+		/**
+		 * Whether the material is affected by fog or not.
+		 *
+		 * @type {boolean}
+		 * @default true
+		 */
+		this.fog = true;
+
+		this.setValues( parameters );
+
+	}
+
+	copy( source ) {
+
+		super.copy( source );
+
+		this.color.copy( source.color );
+
+		this.fog = source.fog;
+
+		return this;
+
+	}
 
 }
-
-ShadowMaterial.prototype = Object.create( ShaderMaterial.prototype );
-ShadowMaterial.prototype.constructor = ShadowMaterial;
-
-ShadowMaterial.prototype.isShadowMaterial = true;
-
 
 export { ShadowMaterial };

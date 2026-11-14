@@ -1,355 +1,269 @@
-import {
-	NoBlending,
-	NormalBlending,
-	AdditiveBlending,
-	SubtractiveBlending,
-	MultiplyBlending,
-	CustomBlending,
-
-	FaceColors,
-	VertexColors,
-
-	DoubleSide,
-	BackSide,
-
-	MirroredRepeatWrapping,
-	RepeatWrapping
-} from '../constants';
-import { _Math } from '../math/Math';
-import { MaterialLoader } from './MaterialLoader';
-import { TextureLoader } from './TextureLoader';
-import { Color } from '../math/Color';
+import { DefaultLoadingManager } from './LoadingManager.js';
 
 /**
- * @author alteredq / http://alteredqualia.com/
+ * Abstract base class for loaders.
+ *
+ * @abstract
  */
+class Loader {
 
-function Loader() {
+	/**
+	 * Constructs a new loader.
+	 *
+	 * @param {LoadingManager} [manager] - The loading manager.
+	 */
+	constructor( manager ) {
 
-	this.onLoadStart = function () {};
-	this.onLoadProgress = function () {};
-	this.onLoadComplete = function () {};
+		/**
+		 * The loading manager.
+		 *
+		 * @type {LoadingManager}
+		 * @default DefaultLoadingManager
+		 */
+		this.manager = ( manager !== undefined ) ? manager : DefaultLoadingManager;
 
-}
+		/**
+		 * The crossOrigin string to implement CORS for loading the url from a
+		 * different domain that allows CORS.
+		 *
+		 * @type {string}
+		 * @default 'anonymous'
+		 */
+		this.crossOrigin = 'anonymous';
 
-Loader.Handlers = {
+		/**
+		 * Whether the XMLHttpRequest uses credentials.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.withCredentials = false;
 
-	handlers: [],
+		/**
+		 * The base path from which the asset will be loaded.
+		 *
+		 * @type {string}
+		 */
+		this.path = '';
 
-	add: function ( regex, loader ) {
+		/**
+		 * The base path from which additional resources like textures will be loaded.
+		 *
+		 * @type {string}
+		 */
+		this.resourcePath = '';
 
-		this.handlers.push( regex, loader );
+		/**
+		 * The [request header](https://developer.mozilla.org/en-US/docs/Glossary/Request_header)
+		 * used in HTTP request.
+		 *
+		 * @type {Object<string, any>}
+		 */
+		this.requestHeader = {};
 
-	},
+		/**
+		 * The request priority hint. Image loaders use `HTMLImageElement.fetchPriority`.
+		 *
+		 * @type {('high'|'low'|'auto')}
+		 * @default 'auto'
+		 */
+		this.priority = 'auto';
 
-	get: function ( file ) {
+		/**
+		 * The HTTP cache mode passed to `fetch()`. This does not affect {@link Cache}
+		 * or loaders using `HTMLImageElement`.
+		 *
+		 * @type {('default'|'no-store'|'reload'|'no-cache'|'force-cache')}
+		 * @default 'default'
+		 */
+		this.cache = 'default';
 
-		var handlers = this.handlers;
+		if ( typeof __THREE_DEVTOOLS__ !== 'undefined' ) {
 
-		for ( var i = 0, l = handlers.length; i < l; i += 2 ) {
-
-			var regex = handlers[ i ];
-			var loader = handlers[ i + 1 ];
-
-			if ( regex.test( file ) ) {
-
-				return loader;
-
-			}
+			__THREE_DEVTOOLS__.dispatchEvent( new CustomEvent( 'observe', { detail: this } ) );
 
 		}
-
-		return null;
 
 	}
 
-};
+	/**
+	 * This method needs to be implemented by all concrete loaders. It holds the
+	 * logic for loading assets from the backend.
+	 *
+	 * @abstract
+	 * @param {string} url - The path/URL of the file to be loaded.
+	 * @param {Function} onLoad - Executed when the loading process has been finished.
+	 * @param {onProgressCallback} [onProgress] - Executed while the loading is in progress.
+	 * @param {onErrorCallback} [onError] - Executed when errors occur.
+	 */
+	load( /* url, onLoad, onProgress, onError */ ) {}
 
-Object.assign( Loader.prototype, {
+	/**
+	 * A async version of {@link Loader#load}.
+	 *
+	 * @param {string} url - The path/URL of the file to be loaded.
+	 * @param {onProgressCallback} [onProgress] - Executed while the loading is in progress.
+	 * @return {Promise} A Promise that resolves when the asset has been loaded.
+	 */
+	loadAsync( url, onProgress ) {
 
-	crossOrigin: undefined,
+		const scope = this;
 
-	extractUrlBase: function ( url ) {
+		return new Promise( function ( resolve, reject ) {
 
-		var parts = url.split( '/' );
+			scope.load( url, resolve, onProgress, reject );
 
-		if ( parts.length === 1 ) return './';
+		} );
 
-		parts.pop();
+	}
 
-		return parts.join( '/' ) + '/';
+	/**
+	 * This method needs to be implemented by all concrete loaders. It holds the
+	 * logic for parsing the asset into three.js entities.
+	 *
+	 * @abstract
+	 * @param {any} data - The data to parse.
+	 */
+	parse( /* data */ ) {}
 
-	},
+	/**
+	 * Sets the `crossOrigin` String to implement CORS for loading the URL
+	 * from a different domain that allows CORS.
+	 *
+	 * @param {string} crossOrigin - The `crossOrigin` value.
+	 * @return {Loader} A reference to this instance.
+	 */
+	setCrossOrigin( crossOrigin ) {
 
-	initMaterials: function ( materials, texturePath, crossOrigin ) {
+		this.crossOrigin = crossOrigin;
+		return this;
 
-		var array = [];
+	}
 
-		for ( var i = 0; i < materials.length; ++ i ) {
+	/**
+	 * Whether the XMLHttpRequest uses credentials such as cookies, authorization
+	 * headers or TLS client certificates, see [XMLHttpRequest.withCredentials](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/withCredentials).
+	 *
+	 * Note: This setting has no effect if you are loading files locally or from the same domain.
+	 *
+	 * @param {boolean} value - The `withCredentials` value.
+	 * @return {Loader} A reference to this instance.
+	 */
+	setWithCredentials( value ) {
 
-			array[ i ] = this.createMaterial( materials[ i ], texturePath, crossOrigin );
+		this.withCredentials = value;
+		return this;
 
-		}
+	}
 
-		return array;
+	/**
+	 * Sets the base path for the asset.
+	 *
+	 * @param {string} path - The base path.
+	 * @return {Loader} A reference to this instance.
+	 */
+	setPath( path ) {
 
-	},
+		this.path = path;
+		return this;
 
-	createMaterial: ( function () {
+	}
 
-		var BlendingMode = {
-			NoBlending: NoBlending,
-			NormalBlending: NormalBlending,
-			AdditiveBlending: AdditiveBlending,
-			SubtractiveBlending: SubtractiveBlending,
-			MultiplyBlending: MultiplyBlending,
-			CustomBlending: CustomBlending
-		};
+	/**
+	 * Sets the base path for dependent resources like textures.
+	 *
+	 * @param {string} resourcePath - The resource path.
+	 * @return {Loader} A reference to this instance.
+	 */
+	setResourcePath( resourcePath ) {
 
-		var color = new Color();
-		var textureLoader = new TextureLoader();
-		var materialLoader = new MaterialLoader();
+		this.resourcePath = resourcePath;
+		return this;
 
-		return function createMaterial( m, texturePath, crossOrigin ) {
+	}
 
-			// convert from old material format
+	/**
+	 * Sets the given request header.
+	 *
+	 * @param {Object} requestHeader - A [request header](https://developer.mozilla.org/en-US/docs/Glossary/Request_header)
+	 * for configuring the HTTP request.
+	 * @return {Loader} A reference to this instance.
+	 */
+	setRequestHeader( requestHeader ) {
 
-			var textures = {};
+		this.requestHeader = requestHeader;
+		return this;
 
-			function loadTexture( path, repeat, offset, wrap, anisotropy ) {
+	}
 
-				var fullPath = texturePath + path;
-				var loader = Loader.Handlers.get( fullPath );
+	/**
+	 * Sets a browser scheduling hint. Browsers may ignore this hint.
+	 * Internally created loaders inherit it. Loaders supplied by the application
+	 * (for example decoder loaders or loading manager handlers) retain their own settings.
+	 *
+	 * @param {('high'|'low'|'auto')} value - The request priority hint.
+	 * @return {Loader} A reference to this instance.
+	 */
+	setPriority( value ) {
 
-				var texture;
+		this.priority = value;
+		return this;
 
-				if ( loader !== null ) {
+	}
 
-					texture = loader.load( fullPath );
+	/**
+	 * Sets the HTTP cache mode for fetch requests. `no-cache` revalidates cached
+	 * responses; `no-store` bypasses the HTTP cache. This does not affect
+	 * {@link Cache} or image element requests.
+	 *
+	 * @param {('default'|'no-store'|'reload'|'no-cache'|'force-cache')} value - The HTTP cache mode.
+	 * @return {Loader} A reference to this instance.
+	 */
+	setCache( value ) {
 
-				} else {
+		this.cache = value;
+		return this;
 
-					textureLoader.setCrossOrigin( crossOrigin );
-					texture = textureLoader.load( fullPath );
+	}
 
-				}
+	/**
+	 * This method can be implemented in loaders for aborting ongoing requests.
+	 *
+	 * @abstract
+	 * @return {Loader} A reference to this instance.
+	 */
+	abort() {
 
-				if ( repeat !== undefined ) {
+		return this;
 
-					texture.repeat.fromArray( repeat );
+	}
 
-					if ( repeat[ 0 ] !== 1 ) texture.wrapS = RepeatWrapping;
-					if ( repeat[ 1 ] !== 1 ) texture.wrapT = RepeatWrapping;
+}
 
-				}
+/**
+ * Callback for onProgress in loaders.
+ *
+ * @callback onProgressCallback
+ * @param {ProgressEvent} event - An instance of `ProgressEvent` that represents the current loading status.
+ */
 
-				if ( offset !== undefined ) {
+/**
+ * Callback for onError in loaders.
+ *
+ * @callback onErrorCallback
+ * @param {Error} error - The error which occurred during the loading process.
+ */
 
-					texture.offset.fromArray( offset );
-
-				}
-
-				if ( wrap !== undefined ) {
-
-					if ( wrap[ 0 ] === 'repeat' ) texture.wrapS = RepeatWrapping;
-					if ( wrap[ 0 ] === 'mirror' ) texture.wrapS = MirroredRepeatWrapping;
-
-					if ( wrap[ 1 ] === 'repeat' ) texture.wrapT = RepeatWrapping;
-					if ( wrap[ 1 ] === 'mirror' ) texture.wrapT = MirroredRepeatWrapping;
-
-				}
-
-				if ( anisotropy !== undefined ) {
-
-					texture.anisotropy = anisotropy;
-
-				}
-
-				var uuid = _Math.generateUUID();
-
-				textures[ uuid ] = texture;
-
-				return uuid;
-
-			}
-
-			//
-
-			var json = {
-				uuid: _Math.generateUUID(),
-				type: 'MeshLambertMaterial'
-			};
-
-			for ( var name in m ) {
-
-				var value = m[ name ];
-
-				switch ( name ) {
-
-					case 'DbgColor':
-					case 'DbgIndex':
-					case 'opticalDensity':
-					case 'illumination':
-						break;
-					case 'DbgName':
-						json.name = value;
-						break;
-					case 'blending':
-						json.blending = BlendingMode[ value ];
-						break;
-					case 'colorAmbient':
-					case 'mapAmbient':
-						console.warn( 'THREE.Loader.createMaterial:', name, 'is no longer supported.' );
-						break;
-					case 'colorDiffuse':
-						json.color = color.fromArray( value ).getHex();
-						break;
-					case 'colorSpecular':
-						json.specular = color.fromArray( value ).getHex();
-						break;
-					case 'colorEmissive':
-						json.emissive = color.fromArray( value ).getHex();
-						break;
-					case 'specularCoef':
-						json.shininess = value;
-						break;
-					case 'shading':
-						if ( value.toLowerCase() === 'basic' ) json.type = 'MeshBasicMaterial';
-						if ( value.toLowerCase() === 'phong' ) json.type = 'MeshPhongMaterial';
-						if ( value.toLowerCase() === 'standard' ) json.type = 'MeshStandardMaterial';
-						break;
-					case 'mapDiffuse':
-						json.map = loadTexture( value, m.mapDiffuseRepeat, m.mapDiffuseOffset, m.mapDiffuseWrap, m.mapDiffuseAnisotropy );
-						break;
-					case 'mapDiffuseRepeat':
-					case 'mapDiffuseOffset':
-					case 'mapDiffuseWrap':
-					case 'mapDiffuseAnisotropy':
-						break;
-					case 'mapEmissive':
-						json.emissiveMap = loadTexture( value, m.mapEmissiveRepeat, m.mapEmissiveOffset, m.mapEmissiveWrap, m.mapEmissiveAnisotropy );
-						break;
-					case 'mapEmissiveRepeat':
-					case 'mapEmissiveOffset':
-					case 'mapEmissiveWrap':
-					case 'mapEmissiveAnisotropy':
-						break;
-					case 'mapLight':
-						json.lightMap = loadTexture( value, m.mapLightRepeat, m.mapLightOffset, m.mapLightWrap, m.mapLightAnisotropy );
-						break;
-					case 'mapLightRepeat':
-					case 'mapLightOffset':
-					case 'mapLightWrap':
-					case 'mapLightAnisotropy':
-						break;
-					case 'mapAO':
-						json.aoMap = loadTexture( value, m.mapAORepeat, m.mapAOOffset, m.mapAOWrap, m.mapAOAnisotropy );
-						break;
-					case 'mapAORepeat':
-					case 'mapAOOffset':
-					case 'mapAOWrap':
-					case 'mapAOAnisotropy':
-						break;
-					case 'mapBump':
-						json.bumpMap = loadTexture( value, m.mapBumpRepeat, m.mapBumpOffset, m.mapBumpWrap, m.mapBumpAnisotropy );
-						break;
-					case 'mapBumpScale':
-						json.bumpScale = value;
-						break;
-					case 'mapBumpRepeat':
-					case 'mapBumpOffset':
-					case 'mapBumpWrap':
-					case 'mapBumpAnisotropy':
-						break;
-					case 'mapNormal':
-						json.normalMap = loadTexture( value, m.mapNormalRepeat, m.mapNormalOffset, m.mapNormalWrap, m.mapNormalAnisotropy );
-						break;
-					case 'mapNormalFactor':
-						json.normalScale = [ value, value ];
-						break;
-					case 'mapNormalRepeat':
-					case 'mapNormalOffset':
-					case 'mapNormalWrap':
-					case 'mapNormalAnisotropy':
-						break;
-					case 'mapSpecular':
-						json.specularMap = loadTexture( value, m.mapSpecularRepeat, m.mapSpecularOffset, m.mapSpecularWrap, m.mapSpecularAnisotropy );
-						break;
-					case 'mapSpecularRepeat':
-					case 'mapSpecularOffset':
-					case 'mapSpecularWrap':
-					case 'mapSpecularAnisotropy':
-						break;
-					case 'mapMetalness':
-						json.metalnessMap = loadTexture( value, m.mapMetalnessRepeat, m.mapMetalnessOffset, m.mapMetalnessWrap, m.mapMetalnessAnisotropy );
-						break;
-					case 'mapMetalnessRepeat':
-					case 'mapMetalnessOffset':
-					case 'mapMetalnessWrap':
-					case 'mapMetalnessAnisotropy':
-						break;
-					case 'mapRoughness':
-						json.roughnessMap = loadTexture( value, m.mapRoughnessRepeat, m.mapRoughnessOffset, m.mapRoughnessWrap, m.mapRoughnessAnisotropy );
-						break;
-					case 'mapRoughnessRepeat':
-					case 'mapRoughnessOffset':
-					case 'mapRoughnessWrap':
-					case 'mapRoughnessAnisotropy':
-						break;
-					case 'mapAlpha':
-						json.alphaMap = loadTexture( value, m.mapAlphaRepeat, m.mapAlphaOffset, m.mapAlphaWrap, m.mapAlphaAnisotropy );
-						break;
-					case 'mapAlphaRepeat':
-					case 'mapAlphaOffset':
-					case 'mapAlphaWrap':
-					case 'mapAlphaAnisotropy':
-						break;
-					case 'flipSided':
-						json.side = BackSide;
-						break;
-					case 'doubleSided':
-						json.side = DoubleSide;
-						break;
-					case 'transparency':
-						console.warn( 'THREE.Loader.createMaterial: transparency has been renamed to opacity' );
-						json.opacity = value;
-						break;
-					case 'depthTest':
-					case 'depthWrite':
-					case 'colorWrite':
-					case 'opacity':
-					case 'reflectivity':
-					case 'transparent':
-					case 'visible':
-					case 'wireframe':
-						json[ name ] = value;
-						break;
-					case 'vertexColors':
-						if ( value === true ) json.vertexColors = VertexColors;
-						if ( value === 'face' ) json.vertexColors = FaceColors;
-						break;
-					default:
-						console.error( 'THREE.Loader.createMaterial: Unsupported', name, value );
-						break;
-
-				}
-
-			}
-
-			if ( json.type === 'MeshBasicMaterial' ) delete json.emissive;
-			if ( json.type !== 'MeshPhongMaterial' ) delete json.specular;
-
-			if ( json.opacity < 1 ) json.transparent = true;
-
-			materialLoader.setTextures( textures );
-
-			return materialLoader.parse( json );
-
-		};
-
-	} )()
-
-} );
-
+/**
+ * The default material name that is used by loaders
+ * when creating materials for loaded 3D objects.
+ *
+ * Note: Not all loaders might honor this setting.
+ *
+ * @static
+ * @type {string}
+ * @default '__DEFAULT'
+ */
+Loader.DEFAULT_MATERIAL_NAME = '__DEFAULT';
 
 export { Loader };

@@ -4,75 +4,50 @@
 		<title>three.js webgl - materials - bump map [Lee Perry-Smith]</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<style>
-			body {
-				background:#000;
-				color:#fff;
-				padding:0;
-				margin:0;
-				font-weight: bold;
-				overflow:hidden;
-			}
-
-			a {	color: #ffffff;	}
-
-			#info {
-				position: absolute;
-				top: 0px; width: 100%;
-				color: #ffffff;
-				padding: 5px;
-				font-family:Monospace;
-				font-size:13px;
-				text-align:center;
-				z-index:1000;
-			}
-
-			#oldie {
-				background:rgb(200,100,0) !important;
-				color:#fff;
-			}
-
-			#vt { display:none }
-			#vt, #vt a { color:orange; }
-		</style>
+		<meta property="og:title" content="three.js webgl - materials - bump map [Lee Perry-Smith]">
+		<meta property="og:type" content="website">
+		<meta property="og:url" content="https://threejs.org/examples/webgl_materials_bumpmap.html">
+		<meta property="og:image" content="https://threejs.org/examples/screenshots/webgl_materials_bumpmap.jpg">
+		<link type="text/css" rel="stylesheet" href="main.css">
 	</head>
 
 	<body>
 		<div id="info">
-			<a href="http://threejs.org" target="_blank">three.js</a> - webgl bump mapping without tangents using <a href="http://mmikkelsen3d.blogspot.sk/2011/07/derivative-maps.html">Morten Mikkelsen's</a> method -
-			<a href="http://graphics.cs.williams.edu/data/meshes.xml#14" target="_blank">Lee Perry-Smith</a> head
+			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> - bump mapping without tangents<br/>
+			<a href="https://casual-effects.com/data/" target="_blank" rel="noopener">Lee Perry-Smith</a> head
 		</div>
 
-		<script src="../build/three.js"></script>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "../build/three.module.js",
+					"three/addons/": "./jsm/"
+				}
+			}
+		</script>
 
-		<script src="js/Detector.js"></script>
-		<script src="js/libs/stats.min.js"></script>
+		<script type="module">
 
-		<script>
+			import * as THREE from 'three';
 
-			if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+			import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
-			var statsEnabled = true;
+			import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-			var container, stats, loader;
+			let container, loader;
 
-			var camera, scene, renderer;
+			let camera, scene, renderer, controls;
 
-			var mesh;
+			let mesh;
 
-			var spotLight;
+			let spotLight;
 
-			var mouseX = 0;
-			var mouseY = 0;
-
-			var targetX = 0;
-			var targetY = 0;
-
-			var windowHalfX = window.innerWidth / 2;
-			var windowHalfY = window.innerHeight / 2;
+			const params = {
+				enableBumpMap: true
+			};
 
 			init();
-			animate();
 
 			function init() {
 
@@ -81,18 +56,18 @@
 
 				//
 
-				camera = new THREE.PerspectiveCamera( 27, window.innerWidth / window.innerHeight, 1, 10000 );
-				camera.position.z = 1200;
+				camera = new THREE.PerspectiveCamera( 27, window.innerWidth / window.innerHeight, 0.1, 100 );
+				camera.position.z = 12;
 
 				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0x060708 );
 
 				// LIGHTS
 
-				scene.add( new THREE.HemisphereLight( 0x443333, 0x111122 ) );
+				scene.add( new THREE.HemisphereLight( 0x8d7c7c, 0x494966, 3 ) );
 
-				spotLight = new THREE.SpotLight( 0xffffbb, 2 );
-				spotLight.position.set( 0.5, 0, 1 );
-				spotLight.position.multiplyScalar( 700 );
+				spotLight = new THREE.SpotLight( 0xffffde, 200 );
+				spotLight.position.set( 3.5, 0, 7 );
 				scene.add( spotLight );
 
 				spotLight.castShadow = true;
@@ -100,61 +75,64 @@
 				spotLight.shadow.mapSize.width = 2048;
 				spotLight.shadow.mapSize.height = 2048;
 
-				spotLight.shadow.camera.near = 200;
-				spotLight.shadow.camera.far = 1500;
+				spotLight.shadow.camera.near = 2;
+				spotLight.shadow.camera.far = 15;
 
 				spotLight.shadow.camera.fov = 40;
 
-				spotLight.shadow.bias = -0.005;
+				spotLight.shadow.bias = - 0.005;
 
 				//
 
-				var mapHeight = new THREE.TextureLoader().load( "obj/leeperrysmith/Infinite-Level_02_Disp_NoSmoothUV-4096.jpg" );
+				const mapHeight = new THREE.TextureLoader().load( 'models/gltf/LeePerrySmith/Infinite-Level_02_Disp_NoSmoothUV-4096.jpg' );
 
-				mapHeight.anisotropy = 4;
-				mapHeight.repeat.set( 0.998, 0.998 );
-				mapHeight.offset.set( 0.001, 0.001 );
-				mapHeight.wrapS = mapHeight.wrapT = THREE.RepeatWrapping;
-				mapHeight.format = THREE.RGBFormat;
-
-				var material = new THREE.MeshPhongMaterial( {
-					color: 0x552811,
-					specular: 0x222222,
+				const material = new THREE.MeshPhongMaterial( {
+					color: 0x9c6e49,
+					specular: 0x666666,
 					shininess: 25,
 					bumpMap: mapHeight,
-					bumpScale: 12
+					bumpScale: 10
 				} );
 
-				loader = new THREE.JSONLoader();
-				loader.load( "obj/leeperrysmith/LeePerrySmith.js", function( geometry ) { createScene( geometry, 100, material ) } );
+				loader = new GLTFLoader();
+				loader.load( 'models/gltf/LeePerrySmith/LeePerrySmith.glb', function ( gltf ) {
 
-				renderer = new THREE.WebGLRenderer( { antialias: false } );
-				renderer.setClearColor( 0x060708 );
+					createScene( gltf.scene.children[ 0 ].geometry, 1, material );
+
+				} );
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.setAnimationLoop( animate );
 				container.appendChild( renderer.domElement );
 
 				renderer.shadowMap.enabled = true;
-				renderer.shadowMap.renderReverseSided = false;
-
-				//
-
-				renderer.gammaInput = true;
-				renderer.gammaOutput = true;
-
-				//
-
-				if ( statsEnabled ) {
-
-					stats = new Stats();
-					container.appendChild( stats.dom );
-
-				}
 
 				// EVENTS
 
-				document.addEventListener( 'mousemove', onDocumentMouseMove, false );
-				window.addEventListener( 'resize', onWindowResize, false );
+				window.addEventListener( 'resize', onWindowResize );
+
+				// GUI
+
+				const gui = new GUI();
+
+				gui.add( params, 'enableBumpMap' ).name( 'enable bump map' ).onChange( ( value ) => {
+
+					mesh.material.bumpMap = ( value === true ) ? mapHeight : null;
+					mesh.material.needsUpdate = true;
+
+				} );
+				gui.add( material, 'bumpScale', 0, 40 ).name( 'bump scale' );
+				gui.open();
+
+				// CONTROLS
+
+				controls = new OrbitControls( camera, renderer.domElement );
+				controls.minDistance = 8;
+				controls.maxDistance = 50;
+				controls.enablePan = false;
+				controls.enableDamping = true;
 
 			}
 
@@ -162,7 +140,7 @@
 
 				mesh = new THREE.Mesh( geometry, material );
 
-				mesh.position.y = - 50;
+				mesh.position.y = - 0.5;
 				mesh.scale.set( scale, scale, scale );
 
 				mesh.castShadow = true;
@@ -174,22 +152,12 @@
 
 			//
 
-			function onWindowResize( event ) {
+			function onWindowResize() {
 
-				SCREEN_WIDTH = window.innerWidth;
-				SCREEN_HEIGHT = window.innerHeight;
+				renderer.setSize( window.innerWidth, window.innerHeight );
 
-				renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
-
-				camera.aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
-
-			}
-
-			function onDocumentMouseMove( event ) {
-
-				mouseX = ( event.clientX - windowHalfX );
-				mouseY = ( event.clientY - windowHalfY );
 
 			}
 
@@ -197,24 +165,7 @@
 
 			function animate() {
 
-				requestAnimationFrame( animate );
-
-				render();
-				if ( statsEnabled ) stats.update();
-
-			}
-
-			function render() {
-
-				targetX = mouseX * .001;
-				targetY = mouseY * .001;
-
-				if ( mesh ) {
-
-					mesh.rotation.y += 0.05 * ( targetX - mesh.rotation.y );
-					mesh.rotation.x += 0.05 * ( targetY - mesh.rotation.x );
-
-				}
+				controls.update();
 
 				renderer.render( scene, camera );
 

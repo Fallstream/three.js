@@ -1,27 +1,76 @@
-(function () {
+import { AmbientLight } from '../../../../src/lights/AmbientLight.js';
 
-	'use strict';
+import { Light } from '../../../../src/lights/Light.js';
+import { runStdLightTests } from '../../utils/qunit-utils.js';
 
-	var lights;
+export default QUnit.module( 'Lights', () => {
 
-	QUnit.module( "Lights - AmbientLight", {
+	QUnit.module( 'AmbientLight', ( hooks ) => {
 
-		beforeEach: function() {
+		let lights = undefined;
+		hooks.beforeEach( function () {
+
+			const parameters = {
+				color: 0xaaaaaa,
+				intensity: 0.5
+			};
 
 			lights = [
-
-				new THREE.AmbientLight( 0xaaaaaa ),
-
+				new AmbientLight(),
+				new AmbientLight( parameters.color ),
+				new AmbientLight( parameters.color, parameters.intensity )
 			];
 
-		}
+		} );
 
-	});
+		// INHERITANCE
+		QUnit.test( 'Extending', ( assert ) => {
 
-	QUnit.test( "standard light tests", function( assert ) {
+			const object = new AmbientLight();
+			assert.strictEqual(
+				object instanceof Light, true,
+				'AmbientLight extends from Light'
+			);
 
-		runStdLightTests( assert, lights );
+		} );
 
-	});
+		// INSTANCING
+		QUnit.test( 'Instancing', ( assert ) => {
 
-})();
+			const object = new AmbientLight();
+			assert.ok( object, 'Can instantiate an AmbientLight.' );
+
+		} );
+
+		// PROPERTIES
+		QUnit.test( 'type', ( assert ) => {
+
+			const object = new AmbientLight();
+			assert.ok(
+				object.type === 'AmbientLight',
+				'AmbientLight.type should be AmbientLight'
+			);
+
+		} );
+
+		// PUBLIC
+		QUnit.test( 'isAmbientLight', ( assert ) => {
+
+			const object = new AmbientLight();
+			assert.ok(
+				object.isAmbientLight,
+				'AmbientLight.isAmbientLight should be true'
+			);
+
+		} );
+
+		// OTHERS
+		QUnit.test( 'Standard light tests', ( assert ) => {
+
+			runStdLightTests( assert, lights );
+
+		} );
+
+	} );
+
+} );

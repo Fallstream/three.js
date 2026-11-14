@@ -1,84 +1,82 @@
-import { LinearFilter, LinearMipMapLinearFilter, ClampToEdgeWrapping } from '../constants';
-import { FileLoader } from './FileLoader';
-import { DataTexture } from '../textures/DataTexture';
-import { DefaultLoadingManager } from './LoadingManager';
+import { LinearFilter, LinearMipmapLinearFilter, ClampToEdgeWrapping } from '../constants.js';
+import { FileLoader } from './FileLoader.js';
+import { DataTexture } from '../textures/DataTexture.js';
+import { Loader } from './Loader.js';
+import { error } from '../utils.js';
 
 /**
- * @author Nikos M. / https://github.com/foo123/
+ * Abstract base class for loading binary texture formats RGBE, EXR or TGA.
+ * Textures are internally loaded via {@link FileLoader}.
  *
- * Abstract Base class to load generic binary textures formats (rgbe, hdr, ...)
+ * Derived classes have to implement the `parse()` method which holds the parsing
+ * for the respective format.
+ *
+ * @abstract
+ * @augments Loader
  */
+class DataTextureLoader extends Loader {
 
-function DataTextureLoader( manager ) {
+	/**
+	 * Constructs a new data texture loader.
+	 *
+	 * @param {LoadingManager} [manager] - The loading manager.
+	 */
+	constructor( manager ) {
 
-	this.manager = ( manager !== undefined ) ? manager : DefaultLoadingManager;
+		super( manager );
 
-	// override in sub classes
-	this._parser = null;
+	}
 
-}
+	/**
+	 * Starts loading from the given URL and passes the loaded data texture
+	 * to the `onLoad()` callback. The method also returns a new texture object which can
+	 * directly be used for material creation. If you do it this way, the texture
+	 * may pop up in your scene once the respective loading process is finished.
+	 *
+	 * @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	 * @param {function(DataTexture)} onLoad - Executed when the loading process has been finished.
+	 * @param {onProgressCallback} onProgress - Executed while the loading is in progress.
+	 * @param {onErrorCallback} onError - Executed when errors occur.
+	 * @return {DataTexture} The data texture.
+	 */
+	load( url, onLoad, onProgress, onError ) {
 
-Object.assign( DataTextureLoader.prototype, {
+		const scope = this;
 
-	load: function ( url, onLoad, onProgress, onError ) {
+		const texture = new DataTexture();
 
-		var scope = this;
-
-		var texture = new DataTexture();
-
-		var loader = new FileLoader( this.manager );
+		const loader = new FileLoader( this.manager );
+		loader.setPriority( this.priority );
+		loader.setCache( this.cache );
 		loader.setResponseType( 'arraybuffer' );
-
+		loader.setRequestHeader( this.requestHeader );
+		loader.setPath( this.path );
+		loader.setWithCredentials( scope.withCredentials );
 		loader.load( url, function ( buffer ) {
 
-			var texData = scope._parser( buffer );
+			let texData;
 
-			if ( ! texData ) return;
+			try {
 
-			if ( undefined !== texData.image ) {
+				texData = scope.parse( buffer );
 
-				texture.image = texData.image;
+			} catch ( e ) {
 
-			} else if ( undefined !== texData.data ) {
+				if ( onError !== undefined ) {
 
-				texture.image.width = texData.width;
-				texture.image.height = texData.height;
-				texture.image.data = texData.data;
+					onError( e );
 
-			}
+				} else {
 
-			texture.wrapS = undefined !== texData.wrapS ? texData.wrapS : ClampToEdgeWrapping;
-			texture.wrapT = undefined !== texData.wrapT ? texData.wrapT : ClampToEdgeWrapping;
+					error( e );
 
-			texture.magFilter = undefined !== texData.magFilter ? texData.magFilter : LinearFilter;
-			texture.minFilter = undefined !== texData.minFilter ? texData.minFilter : LinearMipMapLinearFilter;
+				}
 
-			texture.anisotropy = undefined !== texData.anisotropy ? texData.anisotropy : 1;
-
-			if ( undefined !== texData.format ) {
-
-				texture.format = texData.format;
-
-			}
-			if ( undefined !== texData.type ) {
-
-				texture.type = texData.type;
+				return;
 
 			}
 
-			if ( undefined !== texData.mipmaps ) {
-
-				texture.mipmaps = texData.mipmaps;
-
-			}
-
-			if ( 1 === texData.mipmapCount ) {
-
-				texture.minFilter = LinearFilter;
-
-			}
-
-			texture.needsUpdate = true;
+			scope._applyTexData( texture, texData );
 
 			if ( onLoad ) onLoad( texture, texData );
 
@@ -89,7 +87,121 @@ Object.assign( DataTextureLoader.prototype, {
 
 	}
 
-} );
+	/**
+	 * Parses the given buffer and returns a configured data texture. Use this method
+	 * for parsing texture data that is already in memory (e.g. drag and drop or data
+	 * loaded from a server) without going through {@link DataTextureLoader#load}.
+	 *
+	 * @param {ArrayBuffer} buffer - The raw texture data.
+	 * @return {DataTexture} The data texture.
+	 */
+	createDataTexture( buffer ) {
 
+		const texture = new DataTexture();
+
+		this._applyTexData( texture, this.parse( buffer ) );
+
+		return texture;
+
+	}
+
+	/**
+	 * Applies the given parsed texture data to the given data texture.
+	 *
+	 * @private
+	 * @param {DataTexture} texture - The data texture.
+	 * @param {DataTextureLoader~TexData} texData - The parsed texture data.
+	 */
+	_applyTexData( texture, texData ) {
+
+		if ( texData.image !== undefined ) {
+
+			texture.image = texData.image;
+
+		} else if ( texData.data !== undefined ) {
+
+			texture.image.width = texData.width;
+			texture.image.height = texData.height;
+			texture.image.data = texData.data;
+
+		}
+
+		texture.wrapS = texData.wrapS !== undefined ? texData.wrapS : ClampToEdgeWrapping;
+		texture.wrapT = texData.wrapT !== undefined ? texData.wrapT : ClampToEdgeWrapping;
+
+		texture.magFilter = texData.magFilter !== undefined ? texData.magFilter : LinearFilter;
+		texture.minFilter = texData.minFilter !== undefined ? texData.minFilter : LinearFilter;
+
+		texture.anisotropy = texData.anisotropy !== undefined ? texData.anisotropy : 1;
+
+		if ( texData.colorSpace !== undefined ) {
+
+			texture.colorSpace = texData.colorSpace;
+
+		}
+
+		if ( texData.flipY !== undefined ) {
+
+			texture.flipY = texData.flipY;
+
+		}
+
+		if ( texData.format !== undefined ) {
+
+			texture.format = texData.format;
+
+		}
+
+		if ( texData.type !== undefined ) {
+
+			texture.type = texData.type;
+
+		}
+
+		if ( texData.mipmaps !== undefined ) {
+
+			texture.mipmaps = texData.mipmaps;
+			texture.minFilter = LinearMipmapLinearFilter; // presumably...
+
+		}
+
+		if ( texData.mipmapCount === 1 ) {
+
+			texture.minFilter = LinearFilter;
+
+		}
+
+		if ( texData.generateMipmaps !== undefined ) {
+
+			texture.generateMipmaps = texData.generateMipmaps;
+
+		}
+
+		texture.needsUpdate = true;
+
+	}
+
+}
+
+/**
+ * Represents the result object type of the `parse()` method.
+ *
+ * @typedef {Object} DataTextureLoader~TexData
+ * @property {Object} [image] - An object holding width, height and the texture data.
+ * @property {number} [width] - The width of the base mip.
+ * @property {number} [height] - The width of the base mip.
+ * @property {TypedArray} [data] - The texture data.
+ * @property {number} [format] - The texture format.
+ * @property {number} [type] - The texture type.
+ * @property {boolean} [flipY] - If set to `true`, the texture is flipped along the vertical axis when uploaded to the GPU.
+ * @property {number} [wrapS=ClampToEdgeWrapping] - The wrapS value.
+ * @property {number} [wrapT=ClampToEdgeWrapping] - The wrapT value.
+ * @property {number} [anisotropy=1] - The anisotropy value.
+ * @property {boolean} [generateMipmaps] - Whether to generate mipmaps or not.
+ * @property {string} [colorSpace] - The color space.
+ * @property {number} [magFilter] - The mag filter.
+ * @property {number} [minFilter] - The min filter.
+ * @property {Array<Object>} [mipmaps] - The mipmaps.
+ **/
 
 export { DataTextureLoader };

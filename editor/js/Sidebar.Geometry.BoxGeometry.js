@@ -1,81 +1,109 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import * as THREE from 'three';
 
-Sidebar.Geometry.BoxGeometry = function ( editor, object ) {
+import { UIDiv, UIRow, UIText, UINumber, UIInteger } from './libs/ui.js';
 
-	var signals = editor.signals;
+import { SetGeometryCommand } from './commands/SetGeometryCommand.js';
 
-	var container = new UI.Row();
+function GeometryParametersPanel( editor, object ) {
 
-	var geometry = object.geometry;
-	var parameters = geometry.parameters;
+	const strings = editor.strings;
+	const signals = editor.signals;
+
+	const container = new UIDiv();
+
+	const geometry = object.geometry;
+	const parameters = geometry.parameters;
 
 	// width
 
-	var widthRow = new UI.Row();
-	var width = new UI.Number( parameters.width ).onChange( update );
+	const widthRow = new UIRow();
+	const width = new UINumber().setPrecision( 3 ).setValue( parameters.width ).onChange( update );
 
-	widthRow.add( new UI.Text( 'Width' ).setWidth( '90px' ) );
+	widthRow.add( new UIText( strings.getKey( 'sidebar/geometry/box_geometry/width' ) ).setClass( 'Label' ) );
 	widthRow.add( width );
 
 	container.add( widthRow );
 
 	// height
 
-	var heightRow = new UI.Row();
-	var height = new UI.Number( parameters.height ).onChange( update );
+	const heightRow = new UIRow();
+	const height = new UINumber().setPrecision( 3 ).setValue( parameters.height ).onChange( update );
 
-	heightRow.add( new UI.Text( 'Height' ).setWidth( '90px' ) );
+	heightRow.add( new UIText( strings.getKey( 'sidebar/geometry/box_geometry/height' ) ).setClass( 'Label' ) );
 	heightRow.add( height );
 
 	container.add( heightRow );
 
 	// depth
 
-	var depthRow = new UI.Row();
-	var depth = new UI.Number( parameters.depth ).onChange( update );
+	const depthRow = new UIRow();
+	const depth = new UINumber().setPrecision( 3 ).setValue( parameters.depth ).onChange( update );
 
-	depthRow.add( new UI.Text( 'Depth' ).setWidth( '90px' ) );
+	depthRow.add( new UIText( strings.getKey( 'sidebar/geometry/box_geometry/depth' ) ).setClass( 'Label' ) );
 	depthRow.add( depth );
 
 	container.add( depthRow );
 
 	// widthSegments
 
-	var widthSegmentsRow = new UI.Row();
-	var widthSegments = new UI.Integer( parameters.widthSegments ).setRange( 1, Infinity ).onChange( update );
+	const widthSegmentsRow = new UIRow();
+	const widthSegments = new UIInteger( parameters.widthSegments ).setRange( 1, Infinity ).onChange( update );
 
-	widthSegmentsRow.add( new UI.Text( 'Width segments' ).setWidth( '90px' ) );
+	widthSegmentsRow.add( new UIText( strings.getKey( 'sidebar/geometry/box_geometry/widthseg' ) ).setClass( 'Label' ) );
 	widthSegmentsRow.add( widthSegments );
 
 	container.add( widthSegmentsRow );
 
 	// heightSegments
 
-	var heightSegmentsRow = new UI.Row();
-	var heightSegments = new UI.Integer( parameters.heightSegments ).setRange( 1, Infinity ).onChange( update );
+	const heightSegmentsRow = new UIRow();
+	const heightSegments = new UIInteger( parameters.heightSegments ).setRange( 1, Infinity ).onChange( update );
 
-	heightSegmentsRow.add( new UI.Text( 'Height segments' ).setWidth( '90px' ) );
+	heightSegmentsRow.add( new UIText( strings.getKey( 'sidebar/geometry/box_geometry/heightseg' ) ).setClass( 'Label' ) );
 	heightSegmentsRow.add( heightSegments );
 
 	container.add( heightSegmentsRow );
 
 	// depthSegments
 
-	var depthSegmentsRow = new UI.Row();
-	var depthSegments = new UI.Integer( parameters.depthSegments ).setRange( 1, Infinity ).onChange( update );
+	const depthSegmentsRow = new UIRow();
+	const depthSegments = new UIInteger( parameters.depthSegments ).setRange( 1, Infinity ).onChange( update );
 
-	depthSegmentsRow.add( new UI.Text( 'Depth segments' ).setWidth( '90px' ) );
+	depthSegmentsRow.add( new UIText( strings.getKey( 'sidebar/geometry/box_geometry/depthseg' ) ).setClass( 'Label' ) );
 	depthSegmentsRow.add( depthSegments );
 
 	container.add( depthSegmentsRow );
 
 	//
 
+	function refreshUI() {
+
+		const parameters = object.geometry.parameters;
+
+		width.setValue( parameters.width );
+		height.setValue( parameters.height );
+		depth.setValue( parameters.depth );
+		widthSegments.setValue( parameters.widthSegments );
+		heightSegments.setValue( parameters.heightSegments );
+		depthSegments.setValue( parameters.depthSegments );
+
+	}
+
+	signals.geometryChanged.add( function ( mesh ) {
+
+		if ( mesh === object ) {
+
+			refreshUI();
+
+		}
+
+	} );
+
+	//
+
 	function update() {
 
-		editor.execute( new SetGeometryCommand( object, new THREE[ geometry.type ](
+		editor.execute( new SetGeometryCommand( editor, object, new THREE.BoxGeometry(
 			width.getValue(),
 			height.getValue(),
 			depth.getValue(),
@@ -88,6 +116,6 @@ Sidebar.Geometry.BoxGeometry = function ( editor, object ) {
 
 	return container;
 
-};
+}
 
-Sidebar.Geometry.BoxBufferGeometry = Sidebar.Geometry.BoxGeometry;
+export { GeometryParametersPanel };

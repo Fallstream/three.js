@@ -4,39 +4,16 @@
 		<title>three.js webgl - render-to-texture</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<style>
-			body {
-				color: #ffffff;
-				font-family:Monospace;
-				font-size:13px;
-				text-align:center;
-				font-weight: bold;
-				background-color: #000000;
-				margin: 0px;
-				overflow: hidden;
-			}
-
-			#info {
-				position: absolute;
-				top: 0px; width: 100%;
-				padding: 5px;
-			}
-
-			a {
-				color: #ffffff;
-			}
-
-		</style>
+		<meta property="og:title" content="three.js webgl - render-to-texture">
+		<meta property="og:type" content="website">
+		<meta property="og:url" content="https://threejs.org/examples/webgl_rtt.html">
+		<meta property="og:image" content="https://threejs.org/examples/screenshots/webgl_rtt.jpg">
+		<link type="text/css" rel="stylesheet" href="main.css">
 	</head>
 	<body>
 
 		<div id="container"></div>
-		<div id="info"><a href="http://threejs.org" target="_blank">three.js</a> render-to-texture webgl example</div>
-
-		<script src="../build/three.js"></script>
-
-		<script src="js/Detector.js"></script>
-		<script src="js/libs/stats.min.js"></script>
+		<div id="info"><a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> render-to-texture webgl example</div>
 
 		<script id="fragment_shader_screen" type="x-shader/x-fragment">
 
@@ -46,6 +23,7 @@
 			void main() {
 
 				gl_FragColor = texture2D( tDiffuse, vUv );
+				#include <colorspace_fragment>
 
 			}
 
@@ -82,26 +60,35 @@
 
 		</script>
 
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "../build/three.module.js",
+					"three/addons/": "./jsm/"
+				}
+			}
+		</script>
 
-		<script>
+		<script type="module">
 
-			if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+			import * as THREE from 'three';
 
-			var container, stats;
+			import Stats from 'three/addons/libs/stats.module.js';
 
-			var cameraRTT, camera, sceneRTT, sceneScreen, scene, renderer, zmesh1, zmesh2;
+			let container, stats;
 
-			var mouseX = 0, mouseY = 0;
+			let cameraRTT, camera, sceneRTT, sceneScreen, scene, renderer, zmesh1, zmesh2;
 
-			var windowHalfX = window.innerWidth / 2;
-			var windowHalfY = window.innerHeight / 2;
+			let mouseX = 0, mouseY = 0;
 
-			var rtTexture, material, quad;
+			const windowHalfX = window.innerWidth / 2;
+			const windowHalfY = window.innerHeight / 2;
 
-			var delta = 0.01;
+			let rtTexture, material, quad;
+
+			let delta = 0.01;
 
 			init();
-			animate();
 
 			function init() {
 
@@ -110,8 +97,8 @@
 				camera = new THREE.PerspectiveCamera( 30, window.innerWidth / window.innerHeight, 1, 10000 );
 				camera.position.z = 100;
 
-				cameraRTT = new THREE.OrthographicCamera( window.innerWidth / - 2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / - 2, -10000, 10000 );
-				cameraRTT.position.z = 100;
+				cameraRTT = new THREE.OrthographicCamera( window.innerWidth / - 2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / - 2, 1, 1000 );
+				cameraRTT.position.z = 500;
 
 				//
 
@@ -119,15 +106,15 @@
 				sceneRTT = new THREE.Scene();
 				sceneScreen = new THREE.Scene();
 
-				var light = new THREE.DirectionalLight( 0xffffff );
+				let light = new THREE.DirectionalLight( 0xffffff, 3 );
 				light.position.set( 0, 0, 1 ).normalize();
 				sceneRTT.add( light );
 
-				light = new THREE.DirectionalLight( 0xffaaaa, 1.5 );
-				light.position.set( 0, 0, -1 ).normalize();
+				light = new THREE.DirectionalLight( 0xffd5d5, 4.5 );
+				light.position.set( 0, 0, - 1 ).normalize();
 				sceneRTT.add( light );
 
-				rtTexture = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight, { minFilter: THREE.LinearFilter, magFilter: THREE.NearestFilter, format: THREE.RGBFormat } );
+				rtTexture = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight );
 
 				material = new THREE.ShaderMaterial( {
 
@@ -137,7 +124,7 @@
 
 				} );
 
-				var materialScreen = new THREE.ShaderMaterial( {
+				const materialScreen = new THREE.ShaderMaterial( {
 
 					uniforms: { tDiffuse: { value: rtTexture.texture } },
 					vertexShader: document.getElementById( 'vertexShader' ).textContent,
@@ -147,40 +134,40 @@
 
 				} );
 
-				var plane = new THREE.PlaneBufferGeometry( window.innerWidth, window.innerHeight );
+				const plane = new THREE.PlaneGeometry( window.innerWidth, window.innerHeight );
 
 				quad = new THREE.Mesh( plane, material );
-				quad.position.z = -100;
+				quad.position.z = - 100;
 				sceneRTT.add( quad );
 
-				var geometry = new THREE.TorusGeometry( 100, 25, 15, 30 );
+				const torusGeometry = new THREE.TorusGeometry( 100, 25, 15, 30 );
 
-				var mat1 = new THREE.MeshPhongMaterial( { color: 0x555555, specular: 0xffaa00, shininess: 5 } );
-				var mat2 = new THREE.MeshPhongMaterial( { color: 0x550000, specular: 0xff2200, shininess: 5 } );
+				const mat1 = new THREE.MeshPhongMaterial( { color: 0x9c9c9c, specular: 0xffaa00, shininess: 5 } );
+				const mat2 = new THREE.MeshPhongMaterial( { color: 0x9c0000, specular: 0xff2200, shininess: 5 } );
 
-				zmesh1 = new THREE.Mesh( geometry, mat1 );
+				zmesh1 = new THREE.Mesh( torusGeometry, mat1 );
 				zmesh1.position.set( 0, 0, 100 );
 				zmesh1.scale.set( 1.5, 1.5, 1.5 );
 				sceneRTT.add( zmesh1 );
 
-				zmesh2 = new THREE.Mesh( geometry, mat2 );
+				zmesh2 = new THREE.Mesh( torusGeometry, mat2 );
 				zmesh2.position.set( 0, 150, 100 );
 				zmesh2.scale.set( 0.75, 0.75, 0.75 );
 				sceneRTT.add( zmesh2 );
 
 				quad = new THREE.Mesh( plane, materialScreen );
-				quad.position.z = -100;
+				quad.position.z = - 100;
 				sceneScreen.add( quad );
 
-				var n = 5,
+				const n = 5,
 					geometry = new THREE.SphereGeometry( 10, 64, 32 ),
 					material2 = new THREE.MeshBasicMaterial( { color: 0xffffff, map: rtTexture.texture } );
 
-				for( var j = 0; j < n; j ++ ) {
+				for ( let j = 0; j < n; j ++ ) {
 
-					for( var i = 0; i < n; i ++ ) {
+					for ( let i = 0; i < n; i ++ ) {
 
-						mesh = new THREE.Mesh( geometry, material2 );
+						const mesh = new THREE.Mesh( geometry, material2 );
 
 						mesh.position.x = ( i - ( n - 1 ) / 2 ) * 20;
 						mesh.position.y = ( j - ( n - 1 ) / 2 ) * 20;
@@ -197,6 +184,7 @@
 				renderer = new THREE.WebGLRenderer();
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.setAnimationLoop( animate );
 				renderer.autoClear = false;
 
 				container.appendChild( renderer.domElement );
@@ -204,7 +192,7 @@
 				stats = new Stats();
 				container.appendChild( stats.dom );
 
-				document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+				document.addEventListener( 'mousemove', onDocumentMouseMove );
 
 			}
 
@@ -219,8 +207,6 @@
 
 			function animate() {
 
-				requestAnimationFrame( animate );
-
 				render();
 				stats.update();
 
@@ -228,7 +214,7 @@
 
 			function render() {
 
-				var time = Date.now() * 0.0015;
+				const time = Date.now() * 0.0015;
 
 				camera.position.x += ( mouseX - camera.position.x ) * .05;
 				camera.position.y += ( - mouseY - camera.position.y ) * .05;
@@ -242,22 +228,25 @@
 
 				}
 
-				if ( material.uniforms.time.value > 1 || material.uniforms.time.value < 0 ) {
+				if ( material.uniforms[ 'time' ].value > 1 || material.uniforms[ 'time' ].value < 0 ) {
 
-					delta *= -1;
+					delta *= - 1;
 
 				}
 
-				material.uniforms.time.value += delta;
+				material.uniforms[ 'time' ].value += delta;
 
-				renderer.clear();
 
 				// Render first scene into texture
 
-				renderer.render( sceneRTT, cameraRTT, rtTexture, true );
+				renderer.setRenderTarget( rtTexture );
+				renderer.clear();
+				renderer.render( sceneRTT, cameraRTT );
 
 				// Render full screen quad with generated texture
 
+				renderer.setRenderTarget( null );
+				renderer.clear();
 				renderer.render( sceneScreen, cameraRTT );
 
 				// Render second scene to screen

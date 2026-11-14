@@ -1,38 +1,69 @@
-(function () {
+import { PlaneGeometry } from '../../../../src/geometries/PlaneGeometry.js';
 
-	'use strict';
+import { BufferGeometry } from '../../../../src/core/BufferGeometry.js';
+import { runStdGeometryTests } from '../../utils/qunit-utils.js';
 
-	var parameters = {
-		width: 10,
-		height: 30,
-		widthSegments: 3,
-		heightSegments: 5
-	};
+export default QUnit.module( 'Geometries', () => {
 
-	var geometries;
+	QUnit.module( 'PlaneGeometry', ( hooks ) => {
 
-	QUnit.module( "Extras - Geometries - PlaneGeometry", {
+		let geometries = undefined;
+		hooks.beforeEach( function () {
 
-		beforeEach: function() {
+			const parameters = {
+				width: 10,
+				height: 30,
+				widthSegments: 3,
+				heightSegments: 5
+			};
 
 			geometries = [
-
-				new THREE.PlaneGeometry(),
-				new THREE.PlaneGeometry( parameters.width ),
-				new THREE.PlaneGeometry( parameters.width, parameters.height ),
-				new THREE.PlaneGeometry( parameters.width, parameters.height, parameters.widthSegments ),
-				new THREE.PlaneGeometry( parameters.width, parameters.height, parameters.widthSegments, parameters.heightSegments ),
-
+				new PlaneGeometry(),
+				new PlaneGeometry( parameters.width ),
+				new PlaneGeometry( parameters.width, parameters.height ),
+				new PlaneGeometry( parameters.width, parameters.height, parameters.widthSegments ),
+				new PlaneGeometry( parameters.width, parameters.height, parameters.widthSegments, parameters.heightSegments ),
 			];
 
-		}
+		} );
 
-	});
+		// INHERITANCE
+		QUnit.test( 'Extending', ( assert ) => {
 
-	QUnit.test( "standard geometry tests", function( assert ) {
+			const object = new PlaneGeometry();
+			assert.strictEqual(
+				object instanceof BufferGeometry, true,
+				'PlaneGeometry extends from BufferGeometry'
+			);
 
-		runStdGeometryTests( assert, geometries );
+		} );
 
-	});
+		// INSTANCING
+		QUnit.test( 'Instancing', ( assert ) => {
 
-})();
+			const object = new PlaneGeometry();
+			assert.ok( object, 'Can instantiate a PlaneGeometry.' );
+
+		} );
+
+		// PROPERTIES
+		QUnit.test( 'type', ( assert ) => {
+
+			const object = new PlaneGeometry();
+			assert.ok(
+				object.type === 'PlaneGeometry',
+				'PlaneGeometry.type should be PlaneGeometry'
+			);
+
+		} );
+
+		// OTHERS
+		QUnit.test( 'Standard geometry tests', ( assert ) => {
+
+			runStdGeometryTests( assert, geometries );
+
+		} );
+
+	} );
+
+} );

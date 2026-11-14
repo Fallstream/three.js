@@ -1,84 +1,85 @@
-three.js
-========
+# three.js
 
-[![Latest NPM release][npm-badge]][npm-badge-url]
-[![License][license-badge]][license-badge-url]
-[![Dependencies][dependencies-badge]][dependencies-badge-url]
-[![Dev Dependencies][devDependencies-badge]][devDependencies-badge-url]
+[![NPM Package][npm]][npm-url]
+[![Build Size][build-size]][build-size-url]
+[![NPM Downloads][npm-downloads]][npmtrends-url]
+[![jsDelivr Downloads][jsdelivr-downloads]][jsdelivr-url]
+[![Discord][discord]][discord-url]
 
-#### JavaScript 3D library ####
+#### JavaScript 3D library
 
-The aim of the project is to create an easy to use, lightweight, 3D library. The library provides &lt;canvas&gt;, &lt;svg&gt;, CSS3D and WebGL renderers.
+The aim of the project is to create an easy-to-use, lightweight, cross-browser, general-purpose 3D library. The current builds only include WebGL and WebGPU renderers but SVG and CSS3D renderers are also available as addons.
 
-[Examples](http://threejs.org/examples/) &mdash;
-[Documentation](http://threejs.org/docs/) &mdash;
+[Examples](https://threejs.org/examples/) &mdash;
+[Docs](https://threejs.org/docs/) &mdash;
+[Manual](https://threejs.org/manual/) &mdash;
 [Wiki](https://github.com/mrdoob/three.js/wiki) &mdash;
 [Migrating](https://github.com/mrdoob/three.js/wiki/Migration-Guide) &mdash;
-[Help](http://stackoverflow.com/questions/tagged/three.js)
+[Questions](https://stackoverflow.com/questions/tagged/three.js) &mdash;
+[Forum](https://discourse.threejs.org/) &mdash;
+[Discord](https://discord.gg/56GBJwAnUS)
 
-### Usage ###
+### Usage
 
-Download the [minified library](http://threejs.org/build/three.min.js) and include it in your html.
-Alternatively see [how to build the library yourself](https://github.com/mrdoob/three.js/wiki/Build-instructions).
-
-```html
-<script src="js/three.min.js"></script>
-```
-
-This code creates a scene, a camera, and a geometric cube, and it adds the cube to the scene. It then creates a `WebGL` renderer for the scene and camera, and it adds that viewport to the document.body element. Finally it animates the cube within the scene for the camera.
+This code creates a scene, a camera, and a geometric cube, and it adds the cube to the scene. It then creates a `WebGL` renderer for the scene and camera, and it adds that viewport to the `document.body` element. Finally, it animates the cube within the scene for the camera.
 
 ```javascript
-var scene, camera, renderer;
-var geometry, material, mesh;
+import * as THREE from 'three';
 
-init();
-animate();
+const width = window.innerWidth, height = window.innerHeight;
 
-function init() {
+// init
 
-	scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera( 70, width / height, 0.01, 10 );
+camera.position.z = 1;
 
-	camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
-	camera.position.z = 1000;
+const scene = new THREE.Scene();
 
-	geometry = new THREE.BoxGeometry( 200, 200, 200 );
-	material = new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } );
+const geometry = new THREE.BoxGeometry( 0.2, 0.2, 0.2 );
+const material = new THREE.MeshNormalMaterial();
 
-	mesh = new THREE.Mesh( geometry, material );
-	scene.add( mesh );
+const mesh = new THREE.Mesh( geometry, material );
+scene.add( mesh );
 
-	renderer = new THREE.WebGLRenderer();
-	renderer.setSize( window.innerWidth, window.innerHeight );
+const renderer = new THREE.WebGLRenderer( { antialias: true } );
+renderer.setSize( width, height );
+renderer.setAnimationLoop( animate );
+document.body.appendChild( renderer.domElement );
 
-	document.body.appendChild( renderer.domElement );
+// animation
 
-}
+function animate( time ) {
 
-function animate() {
-
-	requestAnimationFrame( animate );
-
-	mesh.rotation.x += 0.01;
-	mesh.rotation.y += 0.02;
+	mesh.rotation.x = time / 2000;
+	mesh.rotation.y = time / 1000;
 
 	renderer.render( scene, camera );
 
 }
 ```
 
-If everything went well you should see [this](http://jsfiddle.net/hfj7gm6t/).
+If everything goes well, you should see [this](https://jsfiddle.net/w43x5Lgh/).
 
-### Change log ###
+### Cloning this repository
 
-[releases](https://github.com/mrdoob/three.js/releases)
+Cloning the repo with all its history results in a ~2 GB download. If you don't need the whole history you can use the `depth` parameter to significantly reduce download size.
+
+```sh
+git clone --depth=1 https://github.com/mrdoob/three.js.git
+```
+
+### Change log
+
+[Releases](https://github.com/mrdoob/three.js/releases)
 
 
-
-[npm-badge]: https://img.shields.io/npm/v/three.svg
-[npm-badge-url]: https://www.npmjs.com/package/three
-[license-badge]: https://img.shields.io/npm/l/three.svg
-[license-badge-url]: ./LICENSE
-[dependencies-badge]: https://img.shields.io/david/mrdoob/three.js.svg
-[dependencies-badge-url]: https://david-dm.org/mrdoob/three.js
-[devDependencies-badge]: https://img.shields.io/david/dev/mrdoob/three.js.svg
-[devDependencies-badge-url]: https://david-dm.org/mrdoob/three.js#info=devDependencies
+[npm]: https://img.shields.io/npm/v/three
+[npm-url]: https://www.npmjs.com/package/three
+[build-size]: https://badgen.net/bundlephobia/minzip/three
+[build-size-url]: https://bundlephobia.com/result?p=three
+[npm-downloads]: https://img.shields.io/npm/dw/three
+[npmtrends-url]: https://www.npmtrends.com/three
+[jsdelivr-downloads]: https://data.jsdelivr.com/v1/package/npm/three/badge?style=rounded
+[jsdelivr-url]: https://www.jsdelivr.com/package/npm/three
+[discord]: https://img.shields.io/discord/685241246557667386
+[discord-url]: https://discord.gg/56GBJwAnUS

@@ -1,44 +1,51 @@
-import { InterpolateLinear } from '../../constants';
-import { KeyframeTrackPrototype } from '../KeyframeTrackPrototype';
-import { QuaternionLinearInterpolant } from '../../math/interpolants/QuaternionLinearInterpolant';
-import { KeyframeTrackConstructor } from '../KeyframeTrackConstructor';
+import { KeyframeTrack } from '../KeyframeTrack.js';
+import { QuaternionLinearInterpolant } from '../../math/interpolants/QuaternionLinearInterpolant.js';
 
 /**
+ * A track for Quaternion keyframe values.
  *
- * A Track of quaternion keyframe values.
- *
- * @author Ben Houston / http://clara.io/
- * @author David Sarno / http://lighthaus.us/
- * @author tschw
+ * @augments KeyframeTrack
  */
+class QuaternionKeyframeTrack extends KeyframeTrack {
 
-function QuaternionKeyframeTrack( name, times, values, interpolation ) {
+	/**
+	 * Constructs a new Quaternion keyframe track.
+	 *
+	 * @param {string} name - The keyframe track's name.
+	 * @param {Array<number>} times - A list of keyframe times.
+	 * @param {Array<number>} values - A list of keyframe values.
+	 * @param {(InterpolateLinear|InterpolateDiscrete|InterpolateSmooth)} [interpolation] - The interpolation type.
+	 */
+	constructor( name, times, values, interpolation ) {
 
-	KeyframeTrackConstructor.call( this, name, times, values, interpolation );
+		super( name, times, values, interpolation );
+
+	}
+
+	/**
+	 * Overwritten so the method returns Quaternion based interpolant.
+	 *
+	 * @static
+	 * @param {TypedArray} [result] - The result buffer.
+	 * @return {QuaternionLinearInterpolant} The new interpolant.
+	 */
+	InterpolantFactoryMethodLinear( result ) {
+
+		return new QuaternionLinearInterpolant( this.times, this.values, this.getValueSize(), result );
+
+	}
 
 }
 
-QuaternionKeyframeTrack.prototype =
-		Object.assign( Object.create( KeyframeTrackPrototype ), {
-
-	constructor: QuaternionKeyframeTrack,
-
-	ValueTypeName: 'quaternion',
-
-	// ValueBufferType is inherited
-
-	DefaultInterpolation: InterpolateLinear,
-
-	InterpolantFactoryMethodLinear: function( result ) {
-
-		return new QuaternionLinearInterpolant(
-				this.times, this.values, this.getValueSize(), result );
-
-	},
-
-	InterpolantFactoryMethodSmooth: undefined // not yet implemented
-
-} );
-
+/**
+ * The value type name.
+ *
+ * @type {string}
+ * @default 'quaternion'
+ */
+QuaternionKeyframeTrack.prototype.ValueTypeName = 'quaternion';
+// ValueBufferType is inherited
+// DefaultInterpolation is inherited;
+QuaternionKeyframeTrack.prototype.InterpolantFactoryMethodSmooth = undefined;
 
 export { QuaternionKeyframeTrack };

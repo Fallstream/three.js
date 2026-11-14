@@ -1,150 +1,180 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
-
-import { Geometry } from '../core/Geometry';
-
-function SphereGeometry( radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength ) {
-
-	Geometry.call( this );
-
-	this.type = 'SphereGeometry';
-
-	this.parameters = {
-		radius: radius,
-		widthSegments: widthSegments,
-		heightSegments: heightSegments,
-		phiStart: phiStart,
-		phiLength: phiLength,
-		thetaStart: thetaStart,
-		thetaLength: thetaLength
-	};
-
-	this.fromBufferGeometry( new SphereBufferGeometry( radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength ) );
-
-}
-
-SphereGeometry.prototype = Object.create( Geometry.prototype );
-SphereGeometry.prototype.constructor = SphereGeometry;
+import { BufferGeometry } from '../core/BufferGeometry.js';
+import { Float32BufferAttribute } from '../core/BufferAttribute.js';
+import { Vector3 } from '../math/Vector3.js';
 
 /**
- * @author benaadams / https://twitter.com/ben_a_adams
- * @author Mugen87 / https://github.com/Mugen87
+ * A class for generating a sphere geometry.
+ *
+ * ```js
+ * const geometry = new THREE.SphereGeometry( 15, 32, 16 );
+ * const material = new THREE.MeshBasicMaterial( { color: 0xffff00 } );
+ * const sphere = new THREE.Mesh( geometry, material );
+ * scene.add( sphere );
+ * ```
+ *
+ * @augments BufferGeometry
+ * @demo scenes/geometry-browser.html#SphereGeometry
  */
+class SphereGeometry extends BufferGeometry {
 
-import { Float32BufferAttribute } from '../core/BufferAttribute';
-import { BufferGeometry } from '../core/BufferGeometry';
-import { Vector3 } from '../math/Vector3';
+	/**
+	 * Constructs a new sphere geometry.
+	 *
+	 * @param {number} [radius=1] - The sphere radius.
+	 * @param {number} [widthSegments=32] - The number of horizontal segments. Minimum value is `3`.
+	 * @param {number} [heightSegments=16] - The number of vertical segments. Minimum value is `2`.
+	 * @param {number} [phiStart=0] - The horizontal starting angle in radians.
+	 * @param {number} [phiLength=Math.PI*2] - The horizontal sweep angle size.
+	 * @param {number} [thetaStart=0] - The vertical starting angle in radians.
+	 * @param {number} [thetaLength=Math.PI] - The vertical sweep angle size.
+	 */
+	constructor( radius = 1, widthSegments = 32, heightSegments = 16, phiStart = 0, phiLength = Math.PI * 2, thetaStart = 0, thetaLength = Math.PI ) {
 
-function SphereBufferGeometry( radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength ) {
+		super();
 
-	BufferGeometry.call( this );
+		this.type = 'SphereGeometry';
 
-	this.type = 'SphereBufferGeometry';
+		/**
+		 * Holds the constructor parameters that have been
+		 * used to generate the geometry. Any modification
+		 * after instantiation does not change the geometry.
+		 *
+		 * @type {Object}
+		 */
+		this.parameters = {
+			radius: radius,
+			widthSegments: widthSegments,
+			heightSegments: heightSegments,
+			phiStart: phiStart,
+			phiLength: phiLength,
+			thetaStart: thetaStart,
+			thetaLength: thetaLength
+		};
 
-	this.parameters = {
-		radius: radius,
-		widthSegments: widthSegments,
-		heightSegments: heightSegments,
-		phiStart: phiStart,
-		phiLength: phiLength,
-		thetaStart: thetaStart,
-		thetaLength: thetaLength
-	};
+		widthSegments = Math.max( 3, Math.floor( widthSegments ) );
+		heightSegments = Math.max( 2, Math.floor( heightSegments ) );
 
-	radius = radius || 50;
+		const thetaEnd = Math.min( thetaStart + thetaLength, Math.PI );
 
-	widthSegments = Math.max( 3, Math.floor( widthSegments ) || 8 );
-	heightSegments = Math.max( 2, Math.floor( heightSegments ) || 6 );
+		let index = 0;
+		const grid = [];
 
-	phiStart = phiStart !== undefined ? phiStart : 0;
-	phiLength = phiLength !== undefined ? phiLength : Math.PI * 2;
+		const vertex = new Vector3();
+		const normal = new Vector3();
 
-	thetaStart = thetaStart !== undefined ? thetaStart : 0;
-	thetaLength = thetaLength !== undefined ? thetaLength : Math.PI;
+		// buffers
 
-	var thetaEnd = thetaStart + thetaLength;
+		const indices = [];
+		const vertices = [];
+		const normals = [];
+		const uvs = [];
 
-	var ix, iy;
+		// generate vertices, normals and uvs
 
-	var index = 0;
-	var grid = [];
+		for ( let iy = 0; iy <= heightSegments; iy ++ ) {
 
-	var vertex = new Vector3();
-	var normal = new Vector3();
+			const verticesRow = [];
 
-	// buffers
+			const v = iy / heightSegments;
+			const theta = thetaStart + v * thetaLength;
 
-	var indices = [];
-	var vertices = [];
-	var normals = [];
-	var uvs = [];
+			const y = radius * Math.cos( theta );
+			const ringRadius = Math.sqrt( radius * radius - y * y );
 
-	// generate vertices, normals and uvs
+			// special case for the poles
 
-	for ( iy = 0; iy <= heightSegments; iy ++ ) {
+			let uOffset = 0;
 
-		var verticesRow = [];
+			if ( iy === 0 && thetaStart === 0 ) {
 
-		var v = iy / heightSegments;
+				uOffset = 0.5 / widthSegments;
 
-		for ( ix = 0; ix <= widthSegments; ix ++ ) {
+			} else if ( iy === heightSegments && thetaEnd === Math.PI ) {
 
-			var u = ix / widthSegments;
+				uOffset = - 0.5 / widthSegments;
 
-			// vertex
+			}
 
-			vertex.x = - radius * Math.cos( phiStart + u * phiLength ) * Math.sin( thetaStart + v * thetaLength );
-			vertex.y = radius * Math.cos( thetaStart + v * thetaLength );
-			vertex.z = radius * Math.sin( phiStart + u * phiLength ) * Math.sin( thetaStart + v * thetaLength );
+			for ( let ix = 0; ix <= widthSegments; ix ++ ) {
 
-			vertices.push( vertex.x, vertex.y, vertex.z );
+				const u = ix / widthSegments;
+				const phi = phiStart + u * phiLength;
 
-			// normal
+				// vertex
 
-			normal.set( vertex.x, vertex.y, vertex.z ).normalize();
-			normals.push( normal.x, normal.y, normal.z );
+				vertex.x = - ringRadius * Math.cos( phi );
+				vertex.y = y;
+				vertex.z = ringRadius * Math.sin( phi );
 
-			// uv
+				vertices.push( vertex.x, vertex.y, vertex.z );
 
-			uvs.push( u, 1 - v );
+				// normal
 
-			verticesRow.push( index ++ );
+				normal.copy( vertex ).normalize();
+				normals.push( normal.x, normal.y, normal.z );
+
+				// uv
+
+				uvs.push( u + uOffset, 1 - v );
+
+				verticesRow.push( index ++ );
+
+			}
+
+			grid.push( verticesRow );
 
 		}
 
-		grid.push( verticesRow );
+		// indices
 
-	}
+		for ( let iy = 0; iy < heightSegments; iy ++ ) {
 
-	// indices
+			for ( let ix = 0; ix < widthSegments; ix ++ ) {
 
-	for ( iy = 0; iy < heightSegments; iy ++ ) {
+				const a = grid[ iy ][ ix + 1 ];
+				const b = grid[ iy ][ ix ];
+				const c = grid[ iy + 1 ][ ix ];
+				const d = grid[ iy + 1 ][ ix + 1 ];
 
-		for ( ix = 0; ix < widthSegments; ix ++ ) {
+				if ( iy !== 0 || thetaStart > 0 ) indices.push( a, b, d );
+				if ( iy !== heightSegments - 1 || thetaEnd < Math.PI ) indices.push( b, c, d );
 
-			var a = grid[ iy ][ ix + 1 ];
-			var b = grid[ iy ][ ix ];
-			var c = grid[ iy + 1 ][ ix ];
-			var d = grid[ iy + 1 ][ ix + 1 ];
-
-			if ( iy !== 0 || thetaStart > 0 ) indices.push( a, b, d );
-			if ( iy !== heightSegments - 1 || thetaEnd < Math.PI ) indices.push( b, c, d );
+			}
 
 		}
 
+		// build geometry
+
+		this.setIndex( indices );
+		this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+		this.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
+		this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
+
 	}
 
-	// build geometry
+	copy( source ) {
 
-	this.setIndex( indices );
-	this.addAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
-	this.addAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
-	this.addAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
+		super.copy( source );
+
+		this.parameters = Object.assign( {}, source.parameters );
+
+		return this;
+
+	}
+
+	/**
+	 * Factory method for creating an instance of this class from the given
+	 * JSON object.
+	 *
+	 * @param {Object} data - A JSON object representing the serialized geometry.
+	 * @return {SphereGeometry} A new instance.
+	 */
+	static fromJSON( data ) {
+
+		return new SphereGeometry( data.radius, data.widthSegments, data.heightSegments, data.phiStart, data.phiLength, data.thetaStart, data.thetaLength );
+
+	}
 
 }
 
-SphereBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
-SphereBufferGeometry.prototype.constructor = SphereBufferGeometry;
-
-export { SphereGeometry, SphereBufferGeometry };
+export { SphereGeometry };

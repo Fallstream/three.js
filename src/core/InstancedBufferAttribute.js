@@ -1,26 +1,49 @@
-import { BufferAttribute } from './BufferAttribute';
+import { BufferAttribute } from './BufferAttribute.js';
 
 /**
- * @author benaadams / https://twitter.com/ben_a_adams
+ * An instanced version of a buffer attribute.
+ *
+ * @augments BufferAttribute
  */
+class InstancedBufferAttribute extends BufferAttribute {
 
-function InstancedBufferAttribute( array, itemSize, meshPerAttribute ) {
+	/**
+	 * Constructs a new instanced buffer attribute.
+	 *
+	 * @param {TypedArray} array - The array holding the attribute data.
+	 * @param {number} itemSize - The item size.
+	 * @param {boolean} [normalized=false] - Whether the data are normalized or not.
+	 * @param {number} [meshPerAttribute=1] - How often a value of this buffer attribute should be repeated.
+	 */
+	constructor( array, itemSize, normalized, meshPerAttribute = 1 ) {
 
-	BufferAttribute.call( this, array, itemSize );
+		super( array, itemSize, normalized );
 
-	this.meshPerAttribute = meshPerAttribute || 1;
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isInstancedBufferAttribute = true;
 
-}
+		/**
+		 * Defines how often a value of this buffer attribute should be repeated. A
+		 * value of one means that each value of the instanced attribute is used for
+		 * a single instance. A value of two means that each value is used for two
+		 * consecutive instances (and so on).
+		 *
+		 * @type {number}
+		 * @default 1
+		 */
+		this.meshPerAttribute = meshPerAttribute;
 
-InstancedBufferAttribute.prototype = Object.assign( Object.create( BufferAttribute.prototype ), {
+	}
 
-	constructor: InstancedBufferAttribute,
+	copy( source ) {
 
-	isInstancedBufferAttribute: true,
-
-	copy: function ( source ) {
-
-		BufferAttribute.prototype.copy.call( this, source );
+		super.copy( source );
 
 		this.meshPerAttribute = source.meshPerAttribute;
 
@@ -28,8 +51,18 @@ InstancedBufferAttribute.prototype = Object.assign( Object.create( BufferAttribu
 
 	}
 
-} );
+	toJSON() {
 
+		const data = super.toJSON();
 
+		data.meshPerAttribute = this.meshPerAttribute;
+
+		data.isInstancedBufferAttribute = true;
+
+		return data;
+
+	}
+
+}
 
 export { InstancedBufferAttribute };

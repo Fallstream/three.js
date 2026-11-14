@@ -1,150 +1,165 @@
-/**
- * @author Kaleb Murphy
- */
-
-import { Geometry } from '../core/Geometry';
-
-function RingGeometry( innerRadius, outerRadius, thetaSegments, phiSegments, thetaStart, thetaLength ) {
-
-	Geometry.call( this );
-
-	this.type = 'RingGeometry';
-
-	this.parameters = {
-		innerRadius: innerRadius,
-		outerRadius: outerRadius,
-		thetaSegments: thetaSegments,
-		phiSegments: phiSegments,
-		thetaStart: thetaStart,
-		thetaLength: thetaLength
-	};
-
-	this.fromBufferGeometry( new RingBufferGeometry( innerRadius, outerRadius, thetaSegments, phiSegments, thetaStart, thetaLength ) );
-
-}
-
-RingGeometry.prototype = Object.create( Geometry.prototype );
-RingGeometry.prototype.constructor = RingGeometry;
+import { BufferGeometry } from '../core/BufferGeometry.js';
+import { Float32BufferAttribute } from '../core/BufferAttribute.js';
+import { Vector2 } from '../math/Vector2.js';
+import { Vector3 } from '../math/Vector3.js';
 
 /**
- * @author Mugen87 / https://github.com/Mugen87
+ * A class for generating a two-dimensional ring geometry.
+ *
+ * ```js
+ * const geometry = new THREE.RingGeometry( 1, 5, 32 );
+ * const material = new THREE.MeshBasicMaterial( { color: 0xffff00, side: THREE.DoubleSide } );
+ * const mesh = new THREE.Mesh( geometry, material );
+ * scene.add( mesh );
+ * ```
+ *
+ * @augments BufferGeometry
+ * @demo scenes/geometry-browser.html#RingGeometry
  */
+class RingGeometry extends BufferGeometry {
 
-import { Float32BufferAttribute } from '../core/BufferAttribute';
-import { BufferGeometry } from '../core/BufferGeometry';
-import { Vector2 } from '../math/Vector2';
-import { Vector3 } from '../math/Vector3';
+	/**
+	 * Constructs a new ring geometry.
+	 *
+	 * @param {number} [innerRadius=0.5] - The inner radius of the ring.
+	 * @param {number} [outerRadius=1] - The outer radius of the ring.
+	 * @param {number} [thetaSegments=32] - Number of segments. A higher number means the ring will be more round. Minimum is `3`.
+	 * @param {number} [phiSegments=1] - Number of segments per ring segment. Minimum is `1`.
+	 * @param {number} [thetaStart=0] - Starting angle in radians.
+	 * @param {number} [thetaLength=Math.PI*2] - Central angle in radians.
+	 */
+	constructor( innerRadius = 0.5, outerRadius = 1, thetaSegments = 32, phiSegments = 1, thetaStart = 0, thetaLength = Math.PI * 2 ) {
 
-function RingBufferGeometry( innerRadius, outerRadius, thetaSegments, phiSegments, thetaStart, thetaLength ) {
+		super();
 
-	BufferGeometry.call( this );
+		this.type = 'RingGeometry';
 
-	this.type = 'RingBufferGeometry';
+		/**
+		 * Holds the constructor parameters that have been
+		 * used to generate the geometry. Any modification
+		 * after instantiation does not change the geometry.
+		 *
+		 * @type {Object}
+		 */
+		this.parameters = {
+			innerRadius: innerRadius,
+			outerRadius: outerRadius,
+			thetaSegments: thetaSegments,
+			phiSegments: phiSegments,
+			thetaStart: thetaStart,
+			thetaLength: thetaLength
+		};
 
-	this.parameters = {
-		innerRadius: innerRadius,
-		outerRadius: outerRadius,
-		thetaSegments: thetaSegments,
-		phiSegments: phiSegments,
-		thetaStart: thetaStart,
-		thetaLength: thetaLength
-	};
+		thetaSegments = Math.max( 3, thetaSegments );
+		phiSegments = Math.max( 1, phiSegments );
 
-	innerRadius = innerRadius || 20;
-	outerRadius = outerRadius || 50;
+		// buffers
 
-	thetaStart = thetaStart !== undefined ? thetaStart : 0;
-	thetaLength = thetaLength !== undefined ? thetaLength : Math.PI * 2;
+		const indices = [];
+		const vertices = [];
+		const normals = [];
+		const uvs = [];
 
-	thetaSegments = thetaSegments !== undefined ? Math.max( 3, thetaSegments ) : 8;
-	phiSegments = phiSegments !== undefined ? Math.max( 1, phiSegments ) : 1;
+		// some helper variables
 
-	// buffers
+		let radius = innerRadius;
+		const radiusStep = ( ( outerRadius - innerRadius ) / phiSegments );
+		const vertex = new Vector3();
+		const uv = new Vector2();
 
-	var indices = [];
-	var vertices = [];
-	var normals = [];
-	var uvs = [];
+		// generate vertices, normals and uvs
 
-	// some helper variables
+		for ( let j = 0; j <= phiSegments; j ++ ) {
 
-	var segment;
-	var radius = innerRadius;
-	var radiusStep = ( ( outerRadius - innerRadius ) / phiSegments );
-	var vertex = new Vector3();
-	var uv = new Vector2();
-	var j, i;
+			for ( let i = 0; i <= thetaSegments; i ++ ) {
 
-	// generate vertices, normals and uvs
+				// values are generate from the inside of the ring to the outside
 
-	for ( j = 0; j <= phiSegments; j ++ ) {
+				const segment = thetaStart + i / thetaSegments * thetaLength;
 
-		for ( i = 0; i <= thetaSegments; i ++ ) {
+				// vertex
 
-			// values are generate from the inside of the ring to the outside
+				vertex.x = radius * Math.cos( segment );
+				vertex.y = radius * Math.sin( segment );
 
-			segment = thetaStart + i / thetaSegments * thetaLength;
+				vertices.push( vertex.x, vertex.y, vertex.z );
 
-			// vertex
+				// normal
 
-			vertex.x = radius * Math.cos( segment );
-			vertex.y = radius * Math.sin( segment );
+				normals.push( 0, 0, 1 );
 
-			vertices.push( vertex.x, vertex.y, vertex.z );
+				// uv
 
-			// normal
+				uv.x = ( vertex.x / outerRadius + 1 ) / 2;
+				uv.y = ( vertex.y / outerRadius + 1 ) / 2;
 
-			normals.push( 0, 0, 1 );
+				uvs.push( uv.x, uv.y );
 
-			// uv
+			}
 
-			uv.x = ( vertex.x / outerRadius + 1 ) / 2;
-			uv.y = ( vertex.y / outerRadius + 1 ) / 2;
+			// increase the radius for next row of vertices
 
-			uvs.push( uv.x, uv.y );
+			radius += radiusStep;
 
 		}
 
-		// increase the radius for next row of vertices
+		// indices
 
-		radius += radiusStep;
+		for ( let j = 0; j < phiSegments; j ++ ) {
 
-	}
+			const thetaSegmentLevel = j * ( thetaSegments + 1 );
 
-	// indices
+			for ( let i = 0; i < thetaSegments; i ++ ) {
 
-	for ( j = 0; j < phiSegments; j ++ ) {
+				const segment = i + thetaSegmentLevel;
 
-		var thetaSegmentLevel = j * ( thetaSegments + 1 );
+				const a = segment;
+				const b = segment + thetaSegments + 1;
+				const c = segment + thetaSegments + 2;
+				const d = segment + 1;
 
-		for ( i = 0; i < thetaSegments; i ++ ) {
+				// faces
 
-			segment = i + thetaSegmentLevel;
+				indices.push( a, b, d );
+				indices.push( b, c, d );
 
-			var a = segment;
-			var b = segment + thetaSegments + 1;
-			var c = segment + thetaSegments + 2;
-			var d = segment + 1;
-
-			// faces
-
-			indices.push( a, b, d );
-			indices.push( b, c, d );
+			}
 
 		}
 
+		// build geometry
+
+		this.setIndex( indices );
+		this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+		this.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
+		this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
+
 	}
 
-	// build geometry
+	copy( source ) {
 
-	this.setIndex( indices );
-	this.addAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
-	this.addAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
-	this.addAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
+		super.copy( source );
+
+		this.parameters = Object.assign( {}, source.parameters );
+
+		return this;
+
+	}
+
+	/**
+	 * Factory method for creating an instance of this class from the given
+	 * JSON object.
+	 *
+	 * @param {Object} data - A JSON object representing the serialized geometry.
+	 * @return {RingGeometry} A new instance.
+	 */
+	static fromJSON( data ) {
+
+		return new RingGeometry( data.innerRadius, data.outerRadius, data.thetaSegments, data.phiSegments, data.thetaStart, data.thetaLength );
+
+	}
 
 }
 
-RingBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
-RingBufferGeometry.prototype.constructor = RingBufferGeometry;
 
-export { RingGeometry, RingBufferGeometry };
+export { RingGeometry };

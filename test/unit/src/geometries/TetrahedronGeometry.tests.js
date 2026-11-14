@@ -1,34 +1,65 @@
-(function () {
+import { TetrahedronGeometry } from '../../../../src/geometries/TetrahedronGeometry.js';
 
-	'use strict';
+import { PolyhedronGeometry } from '../../../../src/geometries/PolyhedronGeometry.js';
+import { runStdGeometryTests } from '../../utils/qunit-utils.js';
 
-	var parameters = {
-		radius: 10,
-		detail: undefined
-	};
+export default QUnit.module( 'Geometries', () => {
 
-	var geometries;
+	QUnit.module( 'TetrahedronGeometry', ( hooks ) => {
 
-	QUnit.module( "Extras - Geometries - TetrahedronGeometry", {
+		let geometries = undefined;
+		hooks.beforeEach( function () {
 
-		beforeEach: function() {
+			const parameters = {
+				radius: 10,
+				detail: undefined
+			};
 
 			geometries = [
-
-				new THREE.TetrahedronGeometry(),
-				new THREE.TetrahedronGeometry( parameters.radius ),
-				new THREE.TetrahedronGeometry( parameters.radius, parameters.detail ),
-
+				new TetrahedronGeometry(),
+				new TetrahedronGeometry( parameters.radius ),
+				new TetrahedronGeometry( parameters.radius, parameters.detail ),
 			];
 
-		}
+		} );
 
-	});
+		// INHERITANCE
+		QUnit.test( 'Extending', ( assert ) => {
 
-	QUnit.test( "standard geometry tests", function( assert ) {
+			const object = new TetrahedronGeometry();
+			assert.strictEqual(
+				object instanceof PolyhedronGeometry, true,
+				'TetrahedronGeometry extends from PolyhedronGeometry'
+			);
 
-		runStdGeometryTests( assert, geometries );
+		} );
 
-	});
+		// INSTANCING
+		QUnit.test( 'Instancing', ( assert ) => {
 
-})();
+			const object = new TetrahedronGeometry();
+			assert.ok( object, 'Can instantiate a TetrahedronGeometry.' );
+
+		} );
+
+		// PROPERTIES
+		QUnit.test( 'type', ( assert ) => {
+
+			const object = new TetrahedronGeometry();
+			assert.ok(
+				object.type === 'TetrahedronGeometry',
+				'TetrahedronGeometry.type should be TetrahedronGeometry'
+			);
+
+		} );
+
+		// OTHERS
+		QUnit.test( 'Standard geometry tests', ( assert ) => {
+
+			runStdGeometryTests( assert, geometries );
+
+		} );
+
+	} );
+
+} );

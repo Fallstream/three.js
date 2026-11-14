@@ -1,76 +1,73 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import { UITabbedPanel } from './libs/ui.js';
 
-Sidebar.Properties = function ( editor ) {
+import { SidebarObject } from './Sidebar.Object.js';
+import { SidebarGeometry } from './Sidebar.Geometry.js';
+import { SidebarMaterial } from './Sidebar.Material.js';
+import { SidebarScript } from './Sidebar.Script.js';
 
-	var signals = editor.signals;
+function SidebarProperties( editor ) {
 
-	var container = new UI.Span();
+	const strings = editor.strings;
 
-	var objectTab = new UI.Text( 'OBJECT' ).onClick( onClick );
-	var geometryTab = new UI.Text( 'GEOMETRY' ).onClick( onClick );
-	var materialTab = new UI.Text( 'MATERIAL' ).onClick( onClick );
+	const container = new UITabbedPanel();
+	container.setId( 'properties' );
 
-	var tabs = new UI.Div();
-	tabs.setId( 'tabs' );
-	tabs.add( objectTab, geometryTab, materialTab );
-	container.add( tabs );
+	container.addTab( 'objectTab', strings.getKey( 'sidebar/properties/object' ), new SidebarObject( editor ) );
+	container.addTab( 'geometryTab', strings.getKey( 'sidebar/properties/geometry' ), new SidebarGeometry( editor ) );
+	container.addTab( 'materialTab', strings.getKey( 'sidebar/properties/material' ), new SidebarMaterial( editor ) );
+	container.addTab( 'scriptTab', strings.getKey( 'sidebar/properties/script' ), new SidebarScript( editor ) );
+	container.select( 'objectTab' );
 
-	function onClick( event ) {
+	function getTabByTabId( tabs, tabId ) {
 
-		select( event.target.textContent );
+		return tabs.find( function ( tab ) {
+
+			return tab.dom.id === tabId;
+
+		} );
 
 	}
 
-	//
+	const geometryTab = getTabByTabId( container.tabs, 'geometryTab' );
+	const materialTab = getTabByTabId( container.tabs, 'materialTab' );
+	const scriptTab = getTabByTabId( container.tabs, 'scriptTab' );
 
-	var object = new UI.Span().add(
-		new Sidebar.Object( editor )
-	);
-	container.add( object );
+	function toggleTabs( object ) {
 
-	var geometry = new UI.Span().add(
-		new Sidebar.Geometry( editor )
-	);
-	container.add( geometry );
+		container.setHidden( object === null );
 
-	var material = new UI.Span().add(
-		new Sidebar.Material( editor )
-	);
-	container.add( material );
+		if ( object === null ) return;
 
-	//
+		geometryTab.setHidden( ! object.geometry );
 
-	function select( section ) {
+		materialTab.setHidden( ! object.material );
 
-		objectTab.setClass( '' );
-		geometryTab.setClass( '' );
-		materialTab.setClass( '' );
+		scriptTab.setHidden( object === editor.camera );
 
-		object.setDisplay( 'none' );
-		geometry.setDisplay( 'none' );
-		material.setDisplay( 'none' );
+		// set active tab
 
-		switch ( section ) {
-			case 'OBJECT':
-				objectTab.setClass( 'selected' );
-				object.setDisplay( '' );
-				break;
-			case 'GEOMETRY':
-				geometryTab.setClass( 'selected' );
-				geometry.setDisplay( '' );
-				break;
-			case 'MATERIAL':
-				materialTab.setClass( 'selected' );
-				material.setDisplay( '' );
-				break;
+		if ( container.selected === 'geometryTab' ) {
+
+			container.select( geometryTab.isHidden() ? 'objectTab' : 'geometryTab' );
+
+		} else if ( container.selected === 'materialTab' ) {
+
+			container.select( materialTab.isHidden() ? 'objectTab' : 'materialTab' );
+
+		} else if ( container.selected === 'scriptTab' ) {
+
+			container.select( scriptTab.isHidden() ? 'objectTab' : 'scriptTab' );
+
 		}
 
 	}
 
-	select( 'OBJECT' );
+	editor.signals.objectSelected.add( toggleTabs );
+
+	toggleTabs( editor.selected );
 
 	return container;
 
-};
+}
+
+export { SidebarProperties };

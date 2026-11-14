@@ -1,42 +1,73 @@
-(function () {
+import { RingGeometry } from '../../../../src/geometries/RingGeometry.js';
 
-	'use strict';
+import { BufferGeometry } from '../../../../src/core/BufferGeometry.js';
+import { runStdGeometryTests } from '../../utils/qunit-utils.js';
 
-	var parameters = {
-		innerRadius: 10,
-		outerRadius: 60,
-		thetaSegments: 12,
-		phiSegments: 14,
-		thetaStart: 0.1,
-		thetaLength: 2.0
-	};
+export default QUnit.module( 'Geometries', () => {
 
-	var geometries;
+	QUnit.module( 'RingGeometry', ( hooks ) => {
 
-	QUnit.module( "Extras - Geometries - RingGeometry", {
+		let geometries = undefined;
+		hooks.beforeEach( function () {
 
-		beforeEach: function() {
+			const parameters = {
+				innerRadius: 10,
+				outerRadius: 60,
+				thetaSegments: 12,
+				phiSegments: 14,
+				thetaStart: 0.1,
+				thetaLength: 2.0
+			};
 
 			geometries = [
-
-				new THREE.RingGeometry(),
-				new THREE.RingGeometry( parameters.innerRadius ),
-				new THREE.RingGeometry( parameters.innerRadius, parameters.outerRadius ),
-				new THREE.RingGeometry( parameters.innerRadius, parameters.outerRadius, parameters.thetaSegments ),
-				new THREE.RingGeometry( parameters.innerRadius, parameters.outerRadius, parameters.thetaSegments, parameters.phiSegments ),
-				new THREE.RingGeometry( parameters.innerRadius, parameters.outerRadius, parameters.thetaSegments, parameters.phiSegments, parameters.thetaStart ),
-				new THREE.RingGeometry( parameters.innerRadius, parameters.outerRadius, parameters.thetaSegments, parameters.phiSegments, parameters.thetaStart, parameters.thetaLength ),
-
+				new RingGeometry(),
+				new RingGeometry( parameters.innerRadius ),
+				new RingGeometry( parameters.innerRadius, parameters.outerRadius ),
+				new RingGeometry( parameters.innerRadius, parameters.outerRadius, parameters.thetaSegments ),
+				new RingGeometry( parameters.innerRadius, parameters.outerRadius, parameters.thetaSegments, parameters.phiSegments ),
+				new RingGeometry( parameters.innerRadius, parameters.outerRadius, parameters.thetaSegments, parameters.phiSegments, parameters.thetaStart ),
+				new RingGeometry( parameters.innerRadius, parameters.outerRadius, parameters.thetaSegments, parameters.phiSegments, parameters.thetaStart, parameters.thetaLength ),
 			];
 
-		}
+		} );
 
-	});
+		// INHERITANCE
+		QUnit.test( 'Extending', ( assert ) => {
 
-	QUnit.test( "standard geometry tests", function( assert ) {
+			const object = new RingGeometry();
+			assert.strictEqual(
+				object instanceof BufferGeometry, true,
+				'RingGeometry extends from BufferGeometry'
+			);
 
-		runStdGeometryTests( assert, geometries );
+		} );
 
-	});
+		// INSTANCING
+		QUnit.test( 'Instancing', ( assert ) => {
 
-})();
+			const object = new RingGeometry();
+			assert.ok( object, 'Can instantiate a RingGeometry.' );
+
+		} );
+
+		// PROPERTIES
+		QUnit.test( 'type', ( assert ) => {
+
+			const object = new RingGeometry();
+			assert.ok(
+				object.type === 'RingGeometry',
+				'RingGeometry.type should be RingGeometry'
+			);
+
+		} );
+
+		// OTHERS
+		QUnit.test( 'Standard geometry tests', ( assert ) => {
+
+			runStdGeometryTests( assert, geometries );
+
+		} );
+
+	} );
+
+} );

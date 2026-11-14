@@ -1,34 +1,65 @@
-(function () {
+import { IcosahedronGeometry } from '../../../../src/geometries/IcosahedronGeometry.js';
 
-	'use strict';
+import { PolyhedronGeometry } from '../../../../src/geometries/PolyhedronGeometry.js';
+import { runStdGeometryTests } from '../../utils/qunit-utils.js';
 
-	var parameters = {
-		radius: 10,
-		detail: undefined
-	};
+export default QUnit.module( 'Geometries', () => {
 
-	var geometries;
+	QUnit.module( 'IcosahedronGeometry', ( hooks ) => {
 
-	QUnit.module( "Extras - Geometries - IcosahedronGeometry", {
+		let geometries = undefined;
+		hooks.beforeEach( function () {
 
-		beforeEach: function() {
+			const parameters = {
+				radius: 10,
+				detail: undefined
+			};
 
 			geometries = [
-
-				new THREE.IcosahedronGeometry(),
-				new THREE.IcosahedronGeometry( parameters.radius ),
-				new THREE.IcosahedronGeometry( parameters.radius, parameters.detail ),
-
+				new IcosahedronGeometry(),
+				new IcosahedronGeometry( parameters.radius ),
+				new IcosahedronGeometry( parameters.radius, parameters.detail ),
 			];
 
-		}
+		} );
 
-	});
+		// INHERITANCE
+		QUnit.test( 'Extending', ( assert ) => {
 
-	QUnit.test( "standard geometry tests", function( assert ) {
+			const object = new IcosahedronGeometry();
+			assert.strictEqual(
+				object instanceof PolyhedronGeometry, true,
+				'IcosahedronGeometry extends from PolyhedronGeometry'
+			);
 
-		runStdGeometryTests( assert, geometries );
+		} );
 
-	});
+		// INSTANCING
+		QUnit.test( 'Instancing', ( assert ) => {
 
-})();
+			const object = new IcosahedronGeometry();
+			assert.ok( object, 'Can instantiate an IcosahedronGeometry.' );
+
+		} );
+
+		// PROPERTIES
+		QUnit.test( 'type', ( assert ) => {
+
+			const object = new IcosahedronGeometry();
+			assert.ok(
+				object.type === 'IcosahedronGeometry',
+				'IcosahedronGeometry.type should be IcosahedronGeometry'
+			);
+
+		} );
+
+		// OTHERS
+		QUnit.test( 'Standard geometry tests', ( assert ) => {
+
+			runStdGeometryTests( assert, geometries );
+
+		} );
+
+	} );
+
+} );

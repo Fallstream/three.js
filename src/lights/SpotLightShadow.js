@@ -1,30 +1,56 @@
-import { LightShadow } from './LightShadow';
-import { _Math } from '../math/Math';
-import { PerspectiveCamera } from '../cameras/PerspectiveCamera';
+import { LightShadow } from './LightShadow.js';
+import { RAD2DEG } from '../math/MathUtils.js';
+import { PerspectiveCamera } from '../cameras/PerspectiveCamera.js';
 
 /**
- * @author mrdoob / http://mrdoob.com/
+ * Represents the shadow configuration of directional lights.
+ *
+ * @augments LightShadow
  */
+class SpotLightShadow extends LightShadow {
 
-function SpotLightShadow() {
+	/**
+	 * Constructs a new spot light shadow.
+	 */
+	constructor() {
 
-	LightShadow.call( this, new PerspectiveCamera( 50, 1, 0.5, 500 ) );
+		super( new PerspectiveCamera( 50, 1, 0.5, 500 ) );
 
-}
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isSpotLightShadow = true;
 
-SpotLightShadow.prototype = Object.assign( Object.create( LightShadow.prototype ), {
+		/**
+		 * Used to focus the shadow camera. The camera's field of view is set as a
+		 * percentage of the spotlight's field-of-view. Range is `[0, 1]`.
+		 *
+		 * @type {number}
+		 * @default 1
+		 */
+		this.focus = 1;
 
-	constructor: SpotLightShadow,
+		/**
+		 * Texture aspect ratio.
+		 *
+		 * @type {number}
+		 * @default 1
+		 */
+		this.aspect = 1;
 
-	isSpotLightShadow: true,
+	}
 
-	update: function ( light ) {
+	updateMatrices( light ) {
 
-		var fov = _Math.RAD2DEG * 2 * light.angle;
-		var aspect = this.mapSize.width / this.mapSize.height;
-		var far = light.distance || 500;
+		const camera = this.camera;
 
-		var camera = this.camera;
+		const fov = RAD2DEG * 2 * light.angle * this.focus;
+		const aspect = ( this.mapSize.width / this.mapSize.height ) * this.aspect;
+		const far = light.distance || camera.far;
 
 		if ( fov !== camera.fov || aspect !== camera.aspect || far !== camera.far ) {
 
@@ -35,9 +61,38 @@ SpotLightShadow.prototype = Object.assign( Object.create( LightShadow.prototype 
 
 		}
 
+		super.updateMatrices( light );
+
 	}
 
-} );
+	copy( source ) {
 
+		super.copy( source );
+
+		this.focus = source.focus;
+		this.aspect = source.aspect;
+
+		return this;
+
+	}
+
+	/**
+	 * Serializes the light shadow into JSON.
+	 *
+	 * @return {Object} A JSON object representing the serialized light shadow.
+	 * @see {@link ObjectLoader#parse}
+	 */
+	toJSON() {
+
+		const object = super.toJSON();
+
+		object.focus = this.focus;
+		object.aspect = this.aspect;
+
+		return object;
+
+	}
+
+}
 
 export { SpotLightShadow };

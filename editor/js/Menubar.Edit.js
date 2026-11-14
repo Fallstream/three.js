@@ -1,26 +1,35 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import { Box3, Vector3 } from 'three';
+import { clone } from 'three/addons/utils/SkeletonUtils.js';
 
-Menubar.Edit = function ( editor ) {
+import { UIPanel, UIRow, UIHorizontalRule, UIText } from './libs/ui.js';
 
-	var container = new UI.Panel();
+import { AddObjectCommand } from './commands/AddObjectCommand.js';
+import { MultiCmdsCommand } from './commands/MultiCmdsCommand.js';
+import { RemoveObjectCommand } from './commands/RemoveObjectCommand.js';
+import { SetPositionCommand } from './commands/SetPositionCommand.js';
+
+function MenubarEdit( editor ) {
+
+	const strings = editor.strings;
+
+	const container = new UIPanel();
 	container.setClass( 'menu' );
 
-	var title = new UI.Panel();
+	const title = new UIPanel();
 	title.setClass( 'title' );
-	title.setTextContent( 'Edit' );
+	title.setTextContent( strings.getKey( 'menubar/edit' ) );
 	container.add( title );
 
-	var options = new UI.Panel();
+	const options = new UIPanel();
 	options.setClass( 'options' );
 	container.add( options );
 
 	// Undo
 
-	var undo = new UI.Row();
+	const undo = new UIRow();
 	undo.setClass( 'option' );
-	undo.setTextContent( 'Undo (Ctrl+Z)' );
+	undo.setTextContent( strings.getKey( 'menubar/edit/undo' ) );
+	undo.add( new UIText( 'CTRL+Z' ).setClass( 'key' ) );
 	undo.onClick( function () {
 
 		editor.undo();
@@ -30,9 +39,10 @@ Menubar.Edit = function ( editor ) {
 
 	// Redo
 
-	var redo = new UI.Row();
+	const redo = new UIRow();
 	redo.setClass( 'option' );
-	redo.setTextContent( 'Redo (Ctrl+Shift+Z)' );
+	redo.setTextContent( strings.getKey( 'menubar/edit/redo' ) );
+	redo.add( new UIText( 'CTRL+SHIFT+Z' ).setClass( 'key' ) );
 	redo.onClick( function () {
 
 		editor.redo();
@@ -40,26 +50,9 @@ Menubar.Edit = function ( editor ) {
 	} );
 	options.add( redo );
 
-	// Clear History
+	function onHistoryChanged() {
 
-	var option = new UI.Row();
-	option.setClass( 'option' );
-	option.setTextContent( 'Clear History' );
-	option.onClick( function () {
-
-		if ( confirm( 'The Undo/Redo History will be cleared. Are you sure?' ) ) {
-
-			editor.history.clear();
-
-		}
-
-	} );
-	options.add( option );
-
-
-	editor.signals.historyChanged.add( function () {
-
-		var history = editor.history;
+		const history = editor.history;
 
 		undo.setClass( 'option' );
 		redo.setClass( 'option' );
@@ -76,130 +69,87 @@ Menubar.Edit = function ( editor ) {
 
 		}
 
-	} );
+	}
+
+	editor.signals.historyChanged.add( onHistoryChanged );
+	onHistoryChanged();
 
 	// ---
 
-	options.add( new UI.HorizontalRule() );
+	options.add( new UIHorizontalRule() );
+
+	// Center
+
+	let option = new UIRow();
+	option.setClass( 'option' );
+	option.setTextContent( strings.getKey( 'menubar/edit/center' ) );
+	option.onClick( function () {
+
+		const object = editor.selected;
+
+		if ( object === null || object.parent === null ) return; // avoid centering the camera or scene
+
+		const aabb = new Box3().setFromObject( object );
+		const center = aabb.getCenter( new Vector3() );
+		const newPosition = new Vector3();
+
+		newPosition.x = object.position.x - center.x;
+		newPosition.y = object.position.y - center.y;
+		newPosition.z = object.position.z - center.z;
+
+		editor.execute( new SetPositionCommand( editor, object, newPosition ) );
+
+	} );
+	options.add( option );
 
 	// Clone
 
-	var option = new UI.Row();
+	option = new UIRow();
 	option.setClass( 'option' );
-	option.setTextContent( 'Clone' );
+	option.setTextContent( strings.getKey( 'menubar/edit/clone' ) );
 	option.onClick( function () {
 
-		var object = editor.selected;
+		let object = editor.selected;
 
-		if ( object.parent === null ) return; // avoid cloning the camera or scene
+		if ( object === null || object.parent === null ) return; // avoid cloning the camera or scene
 
-		object = object.clone();
+		object = clone( object );
 
-		editor.execute( new AddObjectCommand( object ) );
+		editor.execute( new AddObjectCommand( editor, object ) );
 
 	} );
 	options.add( option );
 
 	// Delete
 
-	var option = new UI.Row();
+	option = new UIRow();
 	option.setClass( 'option' );
-	option.setTextContent( 'Delete (Del)' );
+	option.setTextContent( strings.getKey( 'menubar/edit/delete' ) );
+	option.add( new UIText( 'DEL' ).setClass( 'key' ) );
 	option.onClick( function () {
 
-		var object = editor.selected;
+		const object = editor.selected;
 
-		if ( confirm( 'Delete ' + object.name + '?' ) === false ) return;
+		if ( object === null || object.parent === null ) return;
 
-		var parent = object.parent;
-		if ( parent === undefined ) return; // avoid deleting the camera or scene
+		if ( object.isSpotLight || object.isDirectionalLight ) {
 
-		editor.execute( new RemoveObjectCommand( object ) );
+			editor.execute( new MultiCmdsCommand( editor, [
+				new RemoveObjectCommand( editor, object ),
+				new RemoveObjectCommand( editor, object.target )
+			] ) );
 
-	} );
-	options.add( option );
+		} else {
 
-	// Minify shaders
-
-	var option = new UI.Row();
-	option.setClass( 'option' );
-	option.setTextContent( 'Minify Shaders' );
-	option.onClick( function() {
-
-		var root = editor.selected || editor.scene;
-
-		var errors = [];
-		var nMaterialsChanged = 0;
-
-		var path = [];
-
-		function getPath ( object ) {
-
-			path.length = 0;
-
-			var parent = object.parent;
-			if ( parent !== undefined ) getPath( parent );
-
-			path.push( object.name || object.uuid );
-
-			return path;
+			editor.execute( new RemoveObjectCommand( editor, object ) );
 
 		}
 
-		var cmds = [];
-		root.traverse( function ( object ) {
-
-			var material = object.material;
-
-			if ( material instanceof THREE.ShaderMaterial ) {
-
-				try {
-
-					var shader = glslprep.minifyGlsl( [
-							material.vertexShader, material.fragmentShader ] );
-
-					cmds.push( new SetMaterialValueCommand( object, 'vertexShader', shader[ 0 ] ) );
-					cmds.push( new SetMaterialValueCommand( object, 'fragmentShader', shader[ 1 ] ) );
-
-					++nMaterialsChanged;
-
-				} catch ( e ) {
-
-					var path = getPath( object ).join( "/" );
-
-					if ( e instanceof glslprep.SyntaxError )
-
-						errors.push( path + ":" +
-								e.line + ":" + e.column + ": " + e.message );
-
-					else {
-
-						errors.push( path +
-								": Unexpected error (see console for details)." );
-
-						console.error( e.stack || e );
-
-					}
-
-				}
-
-			}
-
-		} );
-
-		if ( nMaterialsChanged > 0 ) {
-
-			editor.execute( new MultiCmdsCommand( cmds ), 'Minify Shaders' );
-
-		}
-
-		window.alert( nMaterialsChanged +
-				" material(s) were changed.\n" + errors.join( "\n" ) );
-
 	} );
 	options.add( option );
-
 
 	return container;
 
-};
+}
+
+export { MenubarEdit };

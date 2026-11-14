@@ -1,10 +1,6 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+function WebGLBufferRenderer( gl, extensions, info ) {
 
-function WebGLBufferRenderer( gl, extensions, infoRender ) {
-
-	var mode;
+	let mode;
 
 	function setMode( value ) {
 
@@ -16,42 +12,35 @@ function WebGLBufferRenderer( gl, extensions, infoRender ) {
 
 		gl.drawArrays( mode, start, count );
 
-		infoRender.calls ++;
-		infoRender.vertices += count;
-
-		if ( mode === gl.TRIANGLES ) infoRender.faces += count / 3;
+		info.update( count, mode, 1 );
 
 	}
 
-	function renderInstances( geometry, start, count ) {
+	function renderInstances( start, count, primcount ) {
 
-		var extension = extensions.get( 'ANGLE_instanced_arrays' );
+		if ( primcount === 0 ) return;
 
-		if ( extension === null ) {
+		gl.drawArraysInstanced( mode, start, count, primcount );
 
-			console.error( 'THREE.WebGLBufferRenderer: using THREE.InstancedBufferGeometry but hardware does not support extension ANGLE_instanced_arrays.' );
-			return;
+		info.update( count, mode, primcount );
+
+	}
+
+	function renderMultiDraw( starts, counts, drawCount ) {
+
+		if ( drawCount === 0 ) return;
+
+		const extension = extensions.get( 'WEBGL_multi_draw' );
+		extension.multiDrawArraysWEBGL( mode, starts, 0, counts, 0, drawCount );
+
+		let elementCount = 0;
+		for ( let i = 0; i < drawCount; i ++ ) {
+
+			elementCount += counts[ i ];
 
 		}
 
-		var position = geometry.attributes.position;
-
-		if ( position.isInterleavedBufferAttribute ) {
-
-			count = position.data.count;
-
-			extension.drawArraysInstancedANGLE( mode, 0, count, geometry.maxInstancedCount );
-
-		} else {
-
-			extension.drawArraysInstancedANGLE( mode, start, count, geometry.maxInstancedCount );
-
-		}
-
-		infoRender.calls ++;
-		infoRender.vertices += count * geometry.maxInstancedCount;
-
-		if ( mode === gl.TRIANGLES ) infoRender.faces += geometry.maxInstancedCount * count / 3;
+		info.update( elementCount, mode, 1 );
 
 	}
 
@@ -60,6 +49,7 @@ function WebGLBufferRenderer( gl, extensions, infoRender ) {
 	this.setMode = setMode;
 	this.render = render;
 	this.renderInstances = renderInstances;
+	this.renderMultiDraw = renderMultiDraw;
 
 }
 

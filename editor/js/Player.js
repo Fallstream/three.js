@@ -1,19 +1,18 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import { UIPanel } from './libs/ui.js';
+import { APP } from './libs/app.js';
 
-var Player = function ( editor ) {
+function Player( editor ) {
 
-	var signals = editor.signals;
+	const signals = editor.signals;
 
-	var container = new UI.Panel();
+	const container = new UIPanel();
 	container.setId( 'player' );
 	container.setPosition( 'absolute' );
 	container.setDisplay( 'none' );
 
 	//
 
-	var player = new APP.Player();
+	const player = new APP.Player();
 	container.dom.appendChild( player.dom );
 
 	window.addEventListener( 'resize', function () {
@@ -22,11 +21,17 @@ var Player = function ( editor ) {
 
 	} );
 
-	signals.startPlayer.add( function () {
+	signals.windowResize.add( function () {
+
+		player.setSize( container.dom.clientWidth, container.dom.clientHeight );
+
+	} );
+
+	signals.startPlayer.add( async function () {
 
 		container.setDisplay( '' );
 
-		player.load( editor.toJSON() );
+		await player.load( editor.toJSON() );
 		player.setSize( container.dom.clientWidth, container.dom.clientHeight );
 		player.play();
 
@@ -43,4 +48,6 @@ var Player = function ( editor ) {
 
 	return container;
 
-};
+}
+
+export { Player };

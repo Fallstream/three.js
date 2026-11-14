@@ -1,307 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>three.js webgl - glTF 1.0</title>
+		<title>three.js webgl - GLTFloader</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<style>
-			body {
-				font-family: Monospace;
-				background-color: #222222;
-				margin: 0px;
-				overflow: hidden;
-			}
-
-			#info {
-				color: #808080;
-				position: absolute;
-				top: 10px;
-				width: 100%;
-				text-align: center;
-				z-index: 100;
-				display:block;
-			}
-
-			#container {
-				position: absolute;
-				top: 0px;
-				width:100%;
-				height:100%;
-				z-index: -1;
-			}
-
-			#controls {
-				position: absolute;
-				width: 200px;
-				bottom: 0px;
-				left: 0px;
-				padding: 10px;
-				background-color: White;
-				font: 13px "Lucida Grande", Lucida, Verdana, sans-serif;
-			}
-
-			#controls > div {
-				margin-bottom: 8px;
-			}
-
-			#controls hr {
-				border: 0px;
-				height: 1px;
-				margin-bottom: 10px;
-				background-color: #bbb;
-			}
-
-			#info a, .button {
-				color: #f00;
-				font-weight: bold;
-				text-decoration: underline;
-				cursor: pointer
-			}
-		</style>
+		<meta property="og:title" content="three.js webgl - GLTFloader">
+		<meta property="og:type" content="website">
+		<meta property="og:url" content="https://threejs.org/examples/webgl_loader_gltf.html">
+		<meta property="og:image" content="https://threejs.org/examples/screenshots/webgl_loader_gltf.jpg">
+		<link type="text/css" rel="stylesheet" href="main.css">
 	</head>
 
 	<body>
 		<div id="info">
-		<a href="http://threejs.org" target="_blank">three.js</a> -
-		<a href="https://github.com/KhronosGroup/glTF" target="_blank">glTF</a> 1.0 loader
-		<br>
-		monster by <a href="http://www.3drt.com/downloads.htm" target="_blank">3drt</a> - COLLADA duck by Sony -
-		Cesium models by <a href="http://cesiumjs.org/" target="_blank">Cesium</a>
+			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> - GLTFLoader<br />
+			<a href="https://hdrihaven.com/hdri/?h=royal_esplanade" target="_blank" rel="noopener">Royal Esplanade</a> from <a href="https://hdrihaven.com/" target="_blank" rel="noopener">HDRI Haven</a>
 		</div>
-	<div id="container"></div>
-	<div id="controls">
-		<div id="status">Loading...</div>
-		<hr />
-		<div>
-			Model
-			<select id="scenes_list" size="1" onchange="selectScene();" ondblclick="selectScene();"></select>
-		</div>
-		<div>
-			Camera
-			<select id="cameras_list" size="1" onchange="selectCamera();" ondblclick="selectCamera();"></select>
-		</div>
-		<div>
-			Animations
-			<input type="checkbox" checked onclick="toggleAnimations();">Play</input>
-		</div>
-		<div>
-			Extension
-			<select id="extensions_list" onchange="selectExtension();">
-				<option value="glTF">None</option>
-				<option value="glTF-MaterialsCommon">Built-in shaders</option>
-				<option value="glTF-Binary">Binary</option>
-			</select>
-		</div>
-	</div>
-		<script src="../build/three.js"></script>
-		<script src="js/controls/OrbitControls.js"></script>
-		<script src="js/loaders/GLTFLoader.js"></script>
 
-		<script>
-			var orbitControls = null;
-			var container, camera, scene, renderer, loader;
-
-			var cameraIndex = 0;
-			var cameras = [];
-			var cameraNames = [];
-			var defaultCamera = null;
-			var gltf = null;
-			var mixer = null;
-			var clock = new THREE.Clock();
-
-			function onload() {
-
-				window.addEventListener( 'resize', onWindowResize, false );
-				document.addEventListener( 'keydown', function(e) { onKeyDown(e); }, false );
-
-				buildSceneList();
-				switchScene(0);
-				animate();
-
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "../build/three.module.js",
+					"three/addons/": "./jsm/"
+				}
 			}
+		</script>
 
-			function initScene(index) {
+		<script type="module">
 
-				container = document.getElementById( 'container' );
+			import * as THREE from 'three';
+
+			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+			import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+			import { UltraHDRLoader } from 'three/addons/loaders/UltraHDRLoader.js';
+			import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+
+			let camera, scene, renderer, controls;
+			let currentModel, mixer;
+			let currentLoadId = 0;
+
+			const timer = new THREE.Timer();
+
+			init();
+
+			function init() {
+
+				const container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.25, 20 );
+				camera.position.set( - 1.8, 0.6, 2.7 );
 
 				scene = new THREE.Scene();
 
-				defaultCamera = new THREE.PerspectiveCamera( 45, container.offsetWidth / container.offsetHeight, 1, 20000 );
+				new UltraHDRLoader()
+					.setPath( 'textures/equirectangular/' )
+					.load( 'royal_esplanade_2k.hdr.jpg', function ( texture ) {
 
-				//defaultCamera.up = new THREE.Vector3( 0, 1, 0 );
-				scene.add( defaultCamera );
-				camera = defaultCamera;
+						texture.mapping = THREE.EquirectangularReflectionMapping;
 
-				var sceneInfo = sceneList[index];
+						scene.background = texture;
+						scene.environment = texture;
 
-				var spot1 = null;
+						render();
 
-				if (sceneInfo.addLights) {
+						// model
 
-					var ambient = new THREE.AmbientLight( 0x222222 );
-					scene.add( ambient );
+						fetch( 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/model-index.json' )
+							.then( response => response.json() )
+							.then( models => {
 
-					var directionalLight = new THREE.DirectionalLight( 0xdddddd );
-					directionalLight.position.set( 0, 0, 1 ).normalize();
-					scene.add( directionalLight );
+								const gui = new GUI();
+								const modelNames = models.map( m => m.name );
+								const params = { model: 'DamagedHelmet' };
 
-					spot1   = new THREE.SpotLight( 0xffffff, 1 );
-					spot1.position.set( 10, 20, 10 );
-					spot1.angle = 0.25;
-					spot1.distance = 1024;
-					spot1.penumbra = 0.75;
+								if ( ! modelNames.includes( params.model ) && modelNames.length > 0 ) {
 
-					if ( sceneInfo.shadows ) {
+									params.model = modelNames[ 0 ];
 
-						spot1.castShadow = true;
-						spot1.shadow.bias = 0.0001;
-						spot1.shadow.mapSize.width = 2048;
-						spot1.shadow.mapSize.height = 2048;
+								}
 
-					}
+								gui.add( params, 'model', modelNames ).onChange( name => {
 
-					scene.add( spot1 );
+									const modelInfo = models.find( m => m.name === name );
+									loadModel( modelInfo );
 
-				}
+								} );
 
-				// RENDERER
+								gui.add( scene, 'backgroundBlurriness', 0, 1 );
 
-				renderer = new THREE.WebGLRenderer({antialias:true});
-				renderer.setClearColor( 0x222222 );
+								const initialModel = models.find( m => m.name === params.model );
+								if ( initialModel ) loadModel( initialModel );
+
+							} );
+
+					} );
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
-
-				if (sceneInfo.shadows) {
-					renderer.shadowMap.enabled = true;
-					renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-				}
-
+				renderer.setAnimationLoop( render );
+				renderer.toneMapping = THREE.ACESFilmicToneMapping;
 				container.appendChild( renderer.domElement );
 
-				var ground = null;
+				controls = new OrbitControls( camera, renderer.domElement );
+				controls.enableDamping = true;
+				controls.minDistance = 2;
+				controls.maxDistance = 10;
+				controls.target.set( 0, 0, - 0.2 );
+				controls.update();
 
-				if (sceneInfo.addGround) {
-					var groundMaterial = new THREE.MeshPhongMaterial({
-							color: 0xFFFFFF,
-							shading: THREE.SmoothShading
-						});
-					ground = new THREE.Mesh( new THREE.PlaneBufferGeometry(512, 512), groundMaterial);
+				window.addEventListener( 'resize', onWindowResize );
 
-					if (sceneInfo.shadows) {
-						ground.receiveShadow = true;
-					}
+			}
 
-					if (sceneInfo.groundPos) {
-						ground.position.copy(sceneInfo.groundPos);
-					} else {
-						ground.position.z = -70;
-					}
+			function loadModel( modelInfo ) {
 
-					ground.rotation.x = -Math.PI / 2;
+				const variants = modelInfo.variants;
+				const variant = variants[ 'glTF-Binary' ] || variants[ 'glTF' ];
+				const url = `https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/${ modelInfo.name }/${ variant.endsWith( '.glb' ) ? 'glTF-Binary' : 'glTF' }/${ variant }`;
 
-					scene.add(ground);
+				if ( currentModel ) {
+
+					scene.remove( currentModel );
+					currentModel = null;
+
 				}
 
-				loader = new THREE.GLTFLoader();
+				if ( mixer ) {
 
-				for (var i = 0; i < extensionSelect.children.length; i++) {
-					var child = extensionSelect.children[i];
-					child.disabled = sceneInfo.extensions.indexOf(child.value) === -1;
-					if (child.disabled && child.selected) {
-						extensionSelect.value = extension = 'glTF';
-					}
+					mixer.stopAllAction();
+					mixer = null;
+
 				}
 
-				var url = sceneInfo.url;
-				var r = eval("/" + '\%s' + "/g");
-				url = url.replace(r, extension);
+				const loadId = ++ currentLoadId;
 
-				if (extension === 'glTF-Binary') {
-					url = url.replace('.gltf', '.glb');
-				}
+				const loader = new GLTFLoader();
+				loader.load( url, async function ( gltf ) {
 
-				var loadStartTime = performance.now();
-				var status = document.getElementById("status");
-				status.innerHTML = "Loading...";
+					if ( loadId !== currentLoadId ) return;
 
-				loader.load( url, function(data) {
+					currentModel = gltf.scene;
 
-					gltf = data;
+					// wait until the model can be added to the scene without blocking due to shader compilation
 
-					var object = gltf.scene;
+					await renderer.compileAsync( currentModel, camera, scene );
 
-					status.innerHTML = "Load time: " + ( performance.now() - loadStartTime ).toFixed( 2 ) + " ms.";
+					if ( loadId !== currentLoadId ) return;
 
-					if (sceneInfo.cameraPos)
-						defaultCamera.position.copy(sceneInfo.cameraPos);
+					scene.add( currentModel );
 
-					if (sceneInfo.center) {
-						orbitControls.target.copy(sceneInfo.center);
-					}
+					fitCameraToSelection( camera, controls, currentModel );
 
-					if (sceneInfo.objectPosition) {
-						object.position.copy(sceneInfo.objectPosition);
+					// animations
 
-						if (spot1) {
-							spot1.position.set(sceneInfo.objectPosition.x - 100, sceneInfo.objectPosition.y + 200, sceneInfo.objectPosition.z - 100 );
-							spot1.target.position.copy(sceneInfo.objectPosition);
-						}
-					}
+					if ( gltf.animations.length > 0 ) {
 
-					if (sceneInfo.objectRotation)
-						object.rotation.copy(sceneInfo.objectRotation);
+						mixer = new THREE.AnimationMixer( currentModel );
 
-					if (sceneInfo.objectScale)
-						object.scale.copy(sceneInfo.objectScale);
-
-					cameraIndex = 0;
-					cameras = [];
-					cameraNames = [];
-
-					if (gltf.cameras && gltf.cameras.length) {
-
-						var i, len = gltf.cameras.length;
-
-						for (i = 0; i < len; i++) {
-
-							var addCamera = true;
-							var cameraName = gltf.cameras[i].parent.name;
-
-							if (sceneInfo.cameras && !(cameraName in sceneInfo.cameras)) {
-									addCamera = false;
-							}
-
-							if (addCamera) {
-								cameraNames.push(cameraName);
-								cameras.push(gltf.cameras[i]);
-							}
-
-						}
-
-						updateCamerasList();
-						switchCamera(1);
-
-					} else {
-
-						updateCamerasList();
-						switchCamera(0);
-
-					}
-
-					var animations = gltf.animations;
-
-					if ( animations && animations.length ) {
-
-						mixer = new THREE.AnimationMixer( object );
-
-						for ( var i = 0; i < animations.length; i ++ ) {
-
-							var animation = animations[ i ];
-
-							// There's .3333 seconds junk at the tail of the Monster animation that
-							// keeps it from looping cleanly. Clip it at 3 seconds
-							if ( sceneInfo.animationTime )
-								animation.duration = sceneInfo.animationTime;
+						for ( const animation of gltf.animations ) {
 
 							mixer.clipAction( animation ).play();
 
@@ -309,270 +167,63 @@
 
 					}
 
-					scene.add( object );
-					onWindowResize();
+				} );
 
-				});
+			}
 
-			orbitControls = new THREE.OrbitControls(defaultCamera, renderer.domElement);
+			function fitCameraToSelection( camera, controls, selection, fitOffset = 1.3 ) {
+
+				const box = new THREE.Box3();
+				box.setFromObject( selection );
+
+				const size = box.getSize( new THREE.Vector3() );
+				const center = box.getCenter( new THREE.Vector3() );
+
+				const maxSize = Math.max( size.x, size.y, size.z );
+				const fitHeightDistance = maxSize / ( 2 * Math.tan( Math.PI * camera.fov / 360 ) );
+				const distance = fitOffset * fitHeightDistance;
+
+				const direction = controls.target.clone().sub( camera.position ).normalize().multiplyScalar( distance );
+
+				controls.maxDistance = distance * 10;
+				controls.minDistance = distance / 10;
+				controls.target.copy( center );
+
+				camera.near = distance / 100;
+				camera.far = distance * 100;
+				camera.updateProjectionMatrix();
+
+				camera.position.copy( controls.target ).sub( direction );
+
+				controls.update();
 
 			}
 
 			function onWindowResize() {
 
-				defaultCamera.aspect = container.offsetWidth / container.offsetHeight;
-				defaultCamera.updateProjectionMatrix();
-
-				var i, len = cameras.length;
-
-				for (i = 0; i < len; i++) { // just do it for default
-					cameras[i].aspect = container.offsetWidth / container.offsetHeight;
-					cameras[i].updateProjectionMatrix();
-				}
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
 
 				renderer.setSize( window.innerWidth, window.innerHeight );
 
+				render();
+
 			}
 
-			function animate() {
-				requestAnimationFrame( animate );
-				if (mixer) mixer.update(clock.getDelta());
-				if (cameraIndex == 0)
-					orbitControls.update();
-				render();
-			}
+			//
 
 			function render() {
+
+				timer.update();
+
+				controls.update();
+
+				if ( mixer ) mixer.update( timer.getDelta() );
+
 				renderer.render( scene, camera );
-			}
-
-			function onKeyDown(event) {
-
-				var chr = String.fromCharCode(event.keyCode);
-
-				if (chr == ' ') {
-
-					index = cameraIndex + 1;
-					if (index > cameras.length)
-					index = 0;
-					switchCamera(index);
-
-				} else {
-
-					var index = parseInt(chr);
-					if (!isNaN(index)	&& (index <= cameras.length)) {
-						switchCamera(index);
-					}
-
-				}
 
 			}
 
-			var sceneList = [
-				{
-					name : "Monster", url : "./models/gltf/monster/%s/monster.gltf",
-					cameraPos: new THREE.Vector3(30, 10, 70),
-					objectScale: new THREE.Vector3(0.4, 0.4, 0.4),
-					objectPosition: new THREE.Vector3(2, 1, 0),
-					objectRotation: new THREE.Euler(0, - 3 * Math.PI / 4, 0),
-					animationTime: 3,
-					addLights:true,
-					shadows:true,
-					addGround:true,
-					extensions: ["glTF", "glTF-MaterialsCommon", "glTF-Binary"]
-				},
-				{
-					name : "Duck", url : "./models/gltf/duck/%s/duck.gltf",
-					cameraPos: new THREE.Vector3(0, 3, 5),
-					addLights:true,
-					addGround:true,
-					shadows:true,
-					extensions: ["glTF", "glTF-MaterialsCommon", "glTF-Binary"]
-				},
-				{
-					name : "Cesium Man", url : "./models/gltf/CesiumMan/%s/Cesium_Man.gltf",
-					 cameraPos: new THREE.Vector3(0, 3, 10),
-					 objectRotation: new THREE.Euler(0, 0, 0),
-					 addLights:true,
-					 addGround:true,
-					 shadows:true,
-					 extensions: ["glTF", "glTF-MaterialsCommon", "glTF-Binary"]
-				},
-				{
-					name : "Cesium Milk Truck",
-					url : "./models/gltf/CesiumMilkTruck/%s/CesiumMilkTruck.gltf",
-					cameraPos: new THREE.Vector3(0, 3, 10),
-					addLights:true,
-					addGround:true,
-					shadows:true,
-					extensions: ["glTF", "glTF-MaterialsCommon", "glTF-Binary"]
-				},
-				{
-					name : "Rigged Simple",
-					url : "./models/gltf/RiggedSimple/%s/RiggedSimple.gltf",
-					cameraPos: new THREE.Vector3(0, 5, 15),
-					objectRotation: new THREE.Euler(0, 90, 0),
-					addLights:true,
-					shadows:true,
-					extensions: ["glTF"]
-				},
-				{
-					name : "Snowflake",
-					url : "./models/gltf/snowflake/snowFlake.gltf",
-					objectScale: new THREE.Vector3(4, 4, 1),
-					cameraPos: new THREE.Vector3(0, 100, 5000),
-					objectPosition: new THREE.Vector3(0, 0, 0),
-					addLights:false,
-					addGround:false,
-					shadows:false,
-					extensions: ["glTF"]
-				},
-				{
-					name : "Snowflakes",
-					url : "./models/gltf/snowflakes/snowFlakes.gltf",
-					cameraPos: new THREE.Vector3(0, 100, 5000),
-					objectPosition: new THREE.Vector3(-1200, -1200, 0),
-					addLights:false,
-					addGround:false,
-					shadows:false,
-					extensions: ["glTF"]
-				}
-			];
-
-			function buildSceneList() {
-
-				var elt = document.getElementById('scenes_list');
-
-				while( elt.hasChildNodes() ){
-					elt.removeChild(elt.lastChild);
-				}
-
-				var i, len = sceneList.length;
-
-				for (i = 0; i < len; i++) {
-					option = document.createElement("option");
-					option.text=sceneList[i].name;
-					elt.add(option);
-				}
-
-			}
-
-			function switchScene(index) {
-
-				cleanup();
-				initScene(index);
-				var elt = document.getElementById('scenes_list');
-				elt.selectedIndex = index;
-
-			}
-
-			function selectScene() {
-
-				var select = document.getElementById("scenes_list");
-				var index = select.selectedIndex;
-
-				if (index >= 0) {
-					switchScene(index);
-				}
-
-			}
-
-			function switchCamera(index) {
-
-				cameraIndex = index;
-
-				if (cameraIndex == 0) {
-					camera = defaultCamera;
-				}
-
-				if (cameraIndex >= 1 && cameraIndex <= cameras.length) {
-					camera = cameras[cameraIndex - 1];
-				}
-
-				var elt = document.getElementById('cameras_list');
-				elt.selectedIndex = cameraIndex;
-
-			}
-
-			function updateCamerasList() {
-
-				var elt = document.getElementById('cameras_list');
-
-				while( elt.hasChildNodes() ){
-					elt.removeChild(elt.lastChild);
-				}
-
-				option = document.createElement("option");
-				option.text="[default]";
-				elt.add(option);
-
-				var i, len = cameraNames.length;
-
-				for (i = 0; i < len; i++) {
-					option = document.createElement("option");
-					option.text=cameraNames[i];
-					elt.add(option);
-				}
-
-			}
-
-			function selectCamera() {
-
-				var select = document.getElementById("cameras_list");
-				var index = select.selectedIndex;
-
-				if (index >= 0) {
-					switchCamera(index);
-				}
-
-			}
-
-			function toggleAnimations() {
-
-				var i, len = gltf.animations.length;
-
-				for (i = 0; i < len; i++) {
-
-					var clip = gltf.animations[i];
-					var action = mixer.existingAction( clip );
-
-					if (action.isRunning()) {
-						action.stop();
-					} else {
-						action.play();
-					}
-
-				}
-
-			}
-
-			var extensionSelect = document.getElementById("extensions_list");
-			var extension = extensionSelect.value;
-			function selectExtension()
-			{
-				extension = extensionSelect.value;
-				selectScene();
-			}
-
-			function cleanup() {
-
-				if (container && renderer) {
-					container.removeChild(renderer.domElement);
-				}
-
-				cameraIndex = 0;
-				cameras = [];
-				cameraNames = [];
-				defaultCamera = null;
-
-				if (!loader || !mixer)
-					return;
-
-				mixer.stopAllAction();
-
-			}
-
-			onload();
 		</script>
 
 	</body>

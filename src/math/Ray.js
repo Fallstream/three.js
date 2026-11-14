@@ -1,182 +1,230 @@
-import { Vector3 } from './Vector3';
+import { Vector3 } from './Vector3.js';
+
+const _vector = /*@__PURE__*/ new Vector3();
+const _segCenter = /*@__PURE__*/ new Vector3();
+const _segDir = /*@__PURE__*/ new Vector3();
+const _diff = /*@__PURE__*/ new Vector3();
 
 /**
- * @author bhouston / http://clara.io
+ * A ray that emits from an origin in a certain direction. The class is used by
+ * {@link Raycaster} to assist with raycasting. Raycasting is used for
+ * mouse picking (working out what objects in the 3D space the mouse is over)
+ * amongst other things.
  */
+class Ray {
 
-function Ray( origin, direction ) {
+	/**
+	 * Constructs a new ray.
+	 *
+	 * @param {Vector3} [origin=(0,0,0)] - The origin of the ray.
+	 * @param {Vector3} [direction=(0,0,-1)] - The (normalized) direction of the ray.
+	 */
+	constructor( origin = new Vector3(), direction = new Vector3( 0, 0, - 1 ) ) {
 
-	this.origin = ( origin !== undefined ) ? origin : new Vector3();
-	this.direction = ( direction !== undefined ) ? direction : new Vector3();
+		/**
+		 * The origin of the ray.
+		 *
+		 * @type {Vector3}
+		 */
+		this.origin = origin;
 
-}
+		/**
+		 * The (normalized) direction of the ray.
+		 *
+		 * @type {Vector3}
+		 */
+		this.direction = direction;
 
-Object.assign( Ray.prototype, {
+	}
 
-	set: function ( origin, direction ) {
+	/**
+	 * Sets the ray's components by copying the given values.
+	 *
+	 * @param {Vector3} origin - The origin.
+	 * @param {Vector3} direction - The direction.
+	 * @return {Ray} A reference to this ray.
+	 */
+	set( origin, direction ) {
 
 		this.origin.copy( origin );
 		this.direction.copy( direction );
 
 		return this;
 
-	},
+	}
 
-	clone: function () {
-
-		return new this.constructor().copy( this );
-
-	},
-
-	copy: function ( ray ) {
+	/**
+	 * Copies the values of the given ray to this instance.
+	 *
+	 * @param {Ray} ray - The ray to copy.
+	 * @return {Ray} A reference to this ray.
+	 */
+	copy( ray ) {
 
 		this.origin.copy( ray.origin );
 		this.direction.copy( ray.direction );
 
 		return this;
 
-	},
+	}
 
-	at: function ( t, optionalTarget ) {
+	/**
+	 * Returns a vector that is located at a given distance along this ray.
+	 *
+	 * @param {number} t - The distance along the ray to retrieve a position for.
+	 * @param {Vector3} target - The target vector that is used to store the method's result.
+	 * @return {Vector3} A position on the ray.
+	 */
+	at( t, target ) {
 
-		var result = optionalTarget || new Vector3();
+		return target.copy( this.origin ).addScaledVector( this.direction, t );
 
-		return result.copy( this.direction ).multiplyScalar( t ).add( this.origin );
+	}
 
-	},
-
-	lookAt: function ( v ) {
+	/**
+	 * Adjusts the direction of the ray to point at the given vector in world space.
+	 *
+	 * @param {Vector3} v - The target position.
+	 * @return {Ray} A reference to this ray.
+	 */
+	lookAt( v ) {
 
 		this.direction.copy( v ).sub( this.origin ).normalize();
 
 		return this;
 
-	},
+	}
 
-	recast: function () {
+	/**
+	 * Shift the origin of this ray along its direction by the given distance.
+	 *
+	 * @param {number} t - The distance along the ray to interpolate.
+	 * @return {Ray} A reference to this ray.
+	 */
+	recast( t ) {
 
-		var v1 = new Vector3();
+		this.origin.copy( this.at( t, _vector ) );
 
-		return function recast( t ) {
+		return this;
 
-			this.origin.copy( this.at( t, v1 ) );
+	}
 
-			return this;
+	/**
+	 * Returns the point along this ray that is closest to the given point.
+	 *
+	 * @param {Vector3} point - A point in 3D space to get the closet location on the ray for.
+	 * @param {Vector3} target - The target vector that is used to store the method's result.
+	 * @return {Vector3} The closest point on this ray.
+	 */
+	closestPointToPoint( point, target ) {
 
-		};
+		target.subVectors( point, this.origin );
 
-	}(),
-
-	closestPointToPoint: function ( point, optionalTarget ) {
-
-		var result = optionalTarget || new Vector3();
-		result.subVectors( point, this.origin );
-		var directionDistance = result.dot( this.direction );
+		const directionDistance = target.dot( this.direction );
 
 		if ( directionDistance < 0 ) {
 
-			return result.copy( this.origin );
+			return target.copy( this.origin );
 
 		}
 
-		return result.copy( this.direction ).multiplyScalar( directionDistance ).add( this.origin );
+		return target.copy( this.origin ).addScaledVector( this.direction, directionDistance );
 
-	},
+	}
 
-	distanceToPoint: function ( point ) {
+	/**
+	 * Returns the distance of the closest approach between this ray and the given point.
+	 *
+	 * @param {Vector3} point - A point in 3D space to compute the distance to.
+	 * @return {number} The distance.
+	 */
+	distanceToPoint( point ) {
 
 		return Math.sqrt( this.distanceSqToPoint( point ) );
 
-	},
+	}
 
-	distanceSqToPoint: function () {
+	/**
+	 * Returns the squared distance of the closest approach between this ray and the given point.
+	 *
+	 * @param {Vector3} point - A point in 3D space to compute the distance to.
+	 * @return {number} The squared distance.
+	 */
+	distanceSqToPoint( point ) {
 
-		var v1 = new Vector3();
+		const directionDistance = _vector.subVectors( point, this.origin ).dot( this.direction );
 
-		return function distanceSqToPoint( point ) {
+		// point behind the ray
 
-			var directionDistance = v1.subVectors( point, this.origin ).dot( this.direction );
+		if ( directionDistance < 0 ) {
 
-			// point behind the ray
+			return this.origin.distanceToSquared( point );
 
-			if ( directionDistance < 0 ) {
+		}
 
-				return this.origin.distanceToSquared( point );
+		_vector.copy( this.origin ).addScaledVector( this.direction, directionDistance );
 
-			}
+		return _vector.distanceToSquared( point );
 
-			v1.copy( this.direction ).multiplyScalar( directionDistance ).add( this.origin );
+	}
 
-			return v1.distanceToSquared( point );
+	/**
+	 * Returns the squared distance between this ray and the given line segment.
+	 *
+	 * @param {Vector3} v0 - The start point of the line segment.
+	 * @param {Vector3} v1 - The end point of the line segment.
+	 * @param {Vector3} [optionalPointOnRay] - When provided, it receives the point on this ray that is closest to the segment.
+	 * @param {Vector3} [optionalPointOnSegment] - When provided, it receives the point on the line segment that is closest to this ray.
+	 * @return {number} The squared distance.
+	 */
+	distanceSqToSegment( v0, v1, optionalPointOnRay, optionalPointOnSegment ) {
 
-		};
+		// from https://github.com/pmjoniak/GeometricTools/blob/master/GTEngine/Include/Mathematics/GteDistRaySegment.h
+		// It returns the min distance between the ray and the segment
+		// defined by v0 and v1
+		// It can also set two optional targets :
+		// - The closest point on the ray
+		// - The closest point on the segment
 
-	}(),
+		_segCenter.copy( v0 ).add( v1 ).multiplyScalar( 0.5 );
+		_segDir.copy( v1 ).sub( v0 ).normalize();
+		_diff.copy( this.origin ).sub( _segCenter );
 
-	distanceSqToSegment: function () {
+		const segExtent = v0.distanceTo( v1 ) * 0.5;
+		const a01 = - this.direction.dot( _segDir );
+		const b0 = _diff.dot( this.direction );
+		const b1 = - _diff.dot( _segDir );
+		const c = _diff.lengthSq();
+		const det = Math.abs( 1 - a01 * a01 );
+		let s0, s1, sqrDist, extDet;
 
-		var segCenter = new Vector3();
-		var segDir = new Vector3();
-		var diff = new Vector3();
+		if ( det > 0 ) {
 
-		return function distanceSqToSegment( v0, v1, optionalPointOnRay, optionalPointOnSegment ) {
+			// The ray and segment are not parallel.
 
-			// from http://www.geometrictools.com/GTEngine/Include/Mathematics/GteDistRaySegment.h
-			// It returns the min distance between the ray and the segment
-			// defined by v0 and v1
-			// It can also set two optional targets :
-			// - The closest point on the ray
-			// - The closest point on the segment
+			s0 = a01 * b1 - b0;
+			s1 = a01 * b0 - b1;
+			extDet = segExtent * det;
 
-			segCenter.copy( v0 ).add( v1 ).multiplyScalar( 0.5 );
-			segDir.copy( v1 ).sub( v0 ).normalize();
-			diff.copy( this.origin ).sub( segCenter );
+			if ( s0 >= 0 ) {
 
-			var segExtent = v0.distanceTo( v1 ) * 0.5;
-			var a01 = - this.direction.dot( segDir );
-			var b0 = diff.dot( this.direction );
-			var b1 = - diff.dot( segDir );
-			var c = diff.lengthSq();
-			var det = Math.abs( 1 - a01 * a01 );
-			var s0, s1, sqrDist, extDet;
+				if ( s1 >= - extDet ) {
 
-			if ( det > 0 ) {
+					if ( s1 <= extDet ) {
 
-				// The ray and segment are not parallel.
+						// region 0
+						// Minimum at interior points of ray and segment.
 
-				s0 = a01 * b1 - b0;
-				s1 = a01 * b0 - b1;
-				extDet = segExtent * det;
-
-				if ( s0 >= 0 ) {
-
-					if ( s1 >= - extDet ) {
-
-						if ( s1 <= extDet ) {
-
-							// region 0
-							// Minimum at interior points of ray and segment.
-
-							var invDet = 1 / det;
-							s0 *= invDet;
-							s1 *= invDet;
-							sqrDist = s0 * ( s0 + a01 * s1 + 2 * b0 ) + s1 * ( a01 * s0 + s1 + 2 * b1 ) + c;
-
-						} else {
-
-							// region 1
-
-							s1 = segExtent;
-							s0 = Math.max( 0, - ( a01 * s1 + b0 ) );
-							sqrDist = - s0 * s0 + s1 * ( s1 + 2 * b1 ) + c;
-
-						}
+						const invDet = 1 / det;
+						s0 *= invDet;
+						s1 *= invDet;
+						sqrDist = s0 * ( s0 + a01 * s1 + 2 * b0 ) + s1 * ( a01 * s0 + s1 + 2 * b1 ) + c;
 
 					} else {
 
-						// region 5
+						// region 1
 
-						s1 = - segExtent;
+						s1 = segExtent;
 						s0 = Math.max( 0, - ( a01 * s1 + b0 ) );
 						sqrDist = - s0 * s0 + s1 * ( s1 + 2 * b1 ) + c;
 
@@ -184,107 +232,134 @@ Object.assign( Ray.prototype, {
 
 				} else {
 
-					if ( s1 <= - extDet ) {
+					// region 5
 
-						// region 4
-
-						s0 = Math.max( 0, - ( - a01 * segExtent + b0 ) );
-						s1 = ( s0 > 0 ) ? - segExtent : Math.min( Math.max( - segExtent, - b1 ), segExtent );
-						sqrDist = - s0 * s0 + s1 * ( s1 + 2 * b1 ) + c;
-
-					} else if ( s1 <= extDet ) {
-
-						// region 3
-
-						s0 = 0;
-						s1 = Math.min( Math.max( - segExtent, - b1 ), segExtent );
-						sqrDist = s1 * ( s1 + 2 * b1 ) + c;
-
-					} else {
-
-						// region 2
-
-						s0 = Math.max( 0, - ( a01 * segExtent + b0 ) );
-						s1 = ( s0 > 0 ) ? segExtent : Math.min( Math.max( - segExtent, - b1 ), segExtent );
-						sqrDist = - s0 * s0 + s1 * ( s1 + 2 * b1 ) + c;
-
-					}
+					s1 = - segExtent;
+					s0 = Math.max( 0, - ( a01 * s1 + b0 ) );
+					sqrDist = - s0 * s0 + s1 * ( s1 + 2 * b1 ) + c;
 
 				}
 
 			} else {
 
-				// Ray and segment are parallel.
+				if ( s1 <= - extDet ) {
 
-				s1 = ( a01 > 0 ) ? - segExtent : segExtent;
-				s0 = Math.max( 0, - ( a01 * s1 + b0 ) );
-				sqrDist = - s0 * s0 + s1 * ( s1 + 2 * b1 ) + c;
+					// region 4
+
+					s0 = Math.max( 0, - ( - a01 * segExtent + b0 ) );
+					s1 = ( s0 > 0 ) ? - segExtent : Math.min( Math.max( - segExtent, - b1 ), segExtent );
+					sqrDist = - s0 * s0 + s1 * ( s1 + 2 * b1 ) + c;
+
+				} else if ( s1 <= extDet ) {
+
+					// region 3
+
+					s0 = 0;
+					s1 = Math.min( Math.max( - segExtent, - b1 ), segExtent );
+					sqrDist = s1 * ( s1 + 2 * b1 ) + c;
+
+				} else {
+
+					// region 2
+
+					s0 = Math.max( 0, - ( a01 * segExtent + b0 ) );
+					s1 = ( s0 > 0 ) ? segExtent : Math.min( Math.max( - segExtent, - b1 ), segExtent );
+					sqrDist = - s0 * s0 + s1 * ( s1 + 2 * b1 ) + c;
+
+				}
 
 			}
 
-			if ( optionalPointOnRay ) {
+		} else {
 
-				optionalPointOnRay.copy( this.direction ).multiplyScalar( s0 ).add( this.origin );
+			// Ray and segment are parallel.
 
-			}
+			s1 = ( a01 > 0 ) ? - segExtent : segExtent;
+			s0 = Math.max( 0, - ( a01 * s1 + b0 ) );
+			sqrDist = - s0 * s0 + s1 * ( s1 + 2 * b1 ) + c;
 
-			if ( optionalPointOnSegment ) {
+		}
 
-				optionalPointOnSegment.copy( segDir ).multiplyScalar( s1 ).add( segCenter );
+		if ( optionalPointOnRay ) {
 
-			}
+			optionalPointOnRay.copy( this.origin ).addScaledVector( this.direction, s0 );
 
-			return sqrDist;
+		}
 
-		};
+		if ( optionalPointOnSegment ) {
 
-	}(),
+			optionalPointOnSegment.copy( _segCenter ).addScaledVector( _segDir, s1 );
 
-	intersectSphere: function () {
+		}
 
-		var v1 = new Vector3();
+		return sqrDist;
 
-		return function intersectSphere( sphere, optionalTarget ) {
+	}
 
-			v1.subVectors( sphere.center, this.origin );
-			var tca = v1.dot( this.direction );
-			var d2 = v1.dot( v1 ) - tca * tca;
-			var radius2 = sphere.radius * sphere.radius;
+	/**
+	 * Intersects this ray with the given sphere, returning the intersection
+	 * point or `null` if there is no intersection.
+	 *
+	 * @param {Sphere} sphere - The sphere to intersect.
+	 * @param {Vector3} target - The target vector that is used to store the method's result.
+	 * @return {?Vector3} The intersection point.
+	 */
+	intersectSphere( sphere, target ) {
 
-			if ( d2 > radius2 ) return null;
+		if ( sphere.radius < 0 ) return null; // handle empty spheres, see #31187
 
-			var thc = Math.sqrt( radius2 - d2 );
+		_vector.subVectors( sphere.center, this.origin );
+		const tca = _vector.dot( this.direction );
+		const d2 = _vector.dot( _vector ) - tca * tca;
+		const radius2 = sphere.radius * sphere.radius;
 
-			// t0 = first intersect point - entrance on front of sphere
-			var t0 = tca - thc;
+		if ( d2 > radius2 ) return null;
 
-			// t1 = second intersect point - exit point on back of sphere
-			var t1 = tca + thc;
+		const thc = Math.sqrt( radius2 - d2 );
 
-			// test to see if both t0 and t1 are behind the ray - if so, return null
-			if ( t0 < 0 && t1 < 0 ) return null;
+		// t0 = first intersect point - entrance on front of sphere
+		const t0 = tca - thc;
 
-			// test to see if t0 is behind the ray:
-			// if it is, the ray is inside the sphere, so return the second exit point scaled by t1,
-			// in order to always return an intersect point that is in front of the ray.
-			if ( t0 < 0 ) return this.at( t1, optionalTarget );
+		// t1 = second intersect point - exit point on back of sphere
+		const t1 = tca + thc;
 
-			// else t0 is in front of the ray, so return the first collision point scaled by t0
-			return this.at( t0, optionalTarget );
+		// test to see if t1 is behind the ray - if so, return null
+		if ( t1 < 0 ) return null;
 
-		};
+		// test to see if t0 is behind the ray:
+		// if it is, the ray is inside the sphere, so return the second exit point scaled by t1,
+		// in order to always return an intersect point that is in front of the ray.
+		if ( t0 < 0 ) return this.at( t1, target );
 
-	}(),
+		// else t0 is in front of the ray, so return the first collision point scaled by t0
+		return this.at( t0, target );
 
-	intersectsSphere: function ( sphere ) {
+	}
 
-		return this.distanceToPoint( sphere.center ) <= sphere.radius;
+	/**
+	 * Returns `true` if this ray intersects with the given sphere.
+	 *
+	 * @param {Sphere} sphere - The sphere to intersect.
+	 * @return {boolean} Whether this ray intersects with the given sphere or not.
+	 */
+	intersectsSphere( sphere ) {
 
-	},
+		if ( sphere.radius < 0 ) return false; // handle empty spheres, see #31187
 
-	distanceToPlane: function ( plane ) {
+		return this.distanceSqToPoint( sphere.center ) <= ( sphere.radius * sphere.radius );
 
-		var denominator = plane.normal.dot( this.direction );
+	}
+
+	/**
+	 * Computes the distance from the ray's origin to the given plane. Returns `null` if the ray
+	 * does not intersect with the plane.
+	 *
+	 * @param {Plane} plane - The plane to compute the distance to.
+	 * @return {?number} Whether this ray intersects with the given sphere or not.
+	 */
+	distanceToPlane( plane ) {
+
+		const denominator = plane.normal.dot( this.direction );
 
 		if ( denominator === 0 ) {
 
@@ -301,17 +376,25 @@ Object.assign( Ray.prototype, {
 
 		}
 
-		var t = - ( this.origin.dot( plane.normal ) + plane.constant ) / denominator;
+		const t = - ( this.origin.dot( plane.normal ) + plane.constant ) / denominator;
 
 		// Return if the ray never intersects the plane
 
-		return t >= 0 ? t :  null;
+		return t >= 0 ? t : null;
 
-	},
+	}
 
-	intersectPlane: function ( plane, optionalTarget ) {
+	/**
+	 * Intersects this ray with the given plane, returning the intersection
+	 * point or `null` if there is no intersection.
+	 *
+	 * @param {Plane} plane - The plane to intersect.
+	 * @param {Vector3} target - The target vector that is used to store the method's result.
+	 * @return {?Vector3} The intersection point.
+	 */
+	intersectPlane( plane, target ) {
 
-		var t = this.distanceToPlane( plane );
+		const t = this.distanceToPlane( plane );
 
 		if ( t === null ) {
 
@@ -319,15 +402,21 @@ Object.assign( Ray.prototype, {
 
 		}
 
-		return this.at( t, optionalTarget );
+		return this.at( t, target );
 
-	},
+	}
 
-	intersectsPlane: function ( plane ) {
+	/**
+	 * Returns `true` if this ray intersects with the given plane.
+	 *
+	 * @param {Plane} plane - The plane to intersect.
+	 * @return {boolean} Whether this ray intersects with the given plane or not.
+	 */
+	intersectsPlane( plane ) {
 
 		// check if the ray lies on the plane first
 
-		var distToPoint = plane.distanceToPoint( this.origin );
+		const distToPoint = plane.distanceToPoint( this.origin );
 
 		if ( distToPoint === 0 ) {
 
@@ -335,7 +424,7 @@ Object.assign( Ray.prototype, {
 
 		}
 
-		var denominator = plane.normal.dot( this.direction );
+		const denominator = plane.normal.dot( this.direction );
 
 		if ( denominator * distToPoint < 0 ) {
 
@@ -347,17 +436,25 @@ Object.assign( Ray.prototype, {
 
 		return false;
 
-	},
+	}
 
-	intersectBox: function ( box, optionalTarget ) {
+	/**
+	 * Intersects this ray with the given bounding box, returning the intersection
+	 * point or `null` if there is no intersection.
+	 *
+	 * @param {Box3} box - The box to intersect.
+	 * @param {Vector3} target - The target vector that is used to store the method's result.
+	 * @return {?Vector3} The intersection point.
+	 */
+	intersectBox( box, target ) {
 
-		var tmin, tmax, tymin, tymax, tzmin, tzmax;
+		let tmin, tmax, tymin, tymax, tzmin, tzmax;
 
-		var invdirx = 1 / this.direction.x,
+		const invdirx = 1 / this.direction.x,
 			invdiry = 1 / this.direction.y,
 			invdirz = 1 / this.direction.z;
 
-		var origin = this.origin;
+		const origin = this.origin;
 
 		if ( invdirx >= 0 ) {
 
@@ -385,12 +482,9 @@ Object.assign( Ray.prototype, {
 
 		if ( ( tmin > tymax ) || ( tymin > tmax ) ) return null;
 
-		// These lines also handle the case where tmin or tmax is NaN
-		// (result of 0 * Infinity). x !== x returns true if x is NaN
+		if ( tymin > tmin || isNaN( tmin ) ) tmin = tymin;
 
-		if ( tymin > tmin || tmin !== tmin ) tmin = tymin;
-
-		if ( tymax < tmax || tmax !== tmax ) tmax = tymax;
+		if ( tymax < tmax || isNaN( tmax ) ) tmax = tymax;
 
 		if ( invdirz >= 0 ) {
 
@@ -414,123 +508,198 @@ Object.assign( Ray.prototype, {
 
 		if ( tmax < 0 ) return null;
 
-		return this.at( tmin >= 0 ? tmin : tmax, optionalTarget );
+		return this.at( tmin >= 0 ? tmin : tmax, target );
 
-	},
+	}
 
-	intersectsBox: ( function () {
+	/**
+	 * Returns `true` if this ray intersects with the given box.
+	 *
+	 * @param {Box3} box - The box to intersect.
+	 * @return {boolean} Whether this ray intersects with the given box or not.
+	 */
+	intersectsBox( box ) {
 
-		var v = new Vector3();
+		return this.intersectBox( box, _vector ) !== null;
 
-		return function intersectsBox( box ) {
+	}
 
-			return this.intersectBox( box, v ) !== null;
+	/**
+	 * Intersects this ray with the given triangle, returning the intersection
+	 * point or `null` if there is no intersection.
+	 *
+	 * @param {Vector3} a - The first vertex of the triangle.
+	 * @param {Vector3} b - The second vertex of the triangle.
+	 * @param {Vector3} c - The third vertex of the triangle.
+	 * @param {boolean} backfaceCulling - Whether to use backface culling or not.
+	 * @param {Vector3} target - The target vector that is used to store the method's result.
+	 * @return {?Vector3} The intersection point.
+	 */
+	intersectTriangle( a, b, c, backfaceCulling, target ) {
 
-		};
+		// Watertight ray/triangle intersection. Reference: Woop, Benthin, Wald,
+		// "Watertight Ray/Triangle Intersection", JCGT vol. 2 no. 1 (2013), Appendix A.
+		// https://jcgt.org/published/0002/01/05/
 
-	} )(),
+		const origin = this.origin;
+		const direction = this.direction;
 
-	intersectTriangle: function () {
+		const dx = direction.x;
+		const dy = direction.y;
+		const dz = direction.z;
 
-		// Compute the offset origin, edges, and normal.
-		var diff = new Vector3();
-		var edge1 = new Vector3();
-		var edge2 = new Vector3();
-		var normal = new Vector3();
+		// triangle vertices relative to the ray origin
 
-		return function intersectTriangle( a, b, c, backfaceCulling, optionalTarget ) {
+		const aox = a.x - origin.x, aoy = a.y - origin.y, aoz = a.z - origin.z;
+		const box = b.x - origin.x, boy = b.y - origin.y, boz = b.z - origin.z;
+		const cox = c.x - origin.x, coy = c.y - origin.y, coz = c.z - origin.z;
 
-			// from http://www.geometrictools.com/GTEngine/Include/Mathematics/GteIntrRay3Triangle3.h
+		// Use the dimension where the ray direction is maximal as the projection
+		// axis (kz) and read every component already permuted into (kx, ky, kz).
+		// kx and ky are swapped when the direction's kz component is negative, to
+		// preserve the winding order of triangles.
 
-			edge1.subVectors( b, a );
-			edge2.subVectors( c, a );
-			normal.crossVectors( edge1, edge2 );
+		const adx = Math.abs( dx ), ady = Math.abs( dy ), adz = Math.abs( dz );
 
-			// Solve Q + t*D = b1*E1 + b2*E2 (Q = kDiff, D = ray direction,
-			// E1 = kEdge1, E2 = kEdge2, N = Cross(E1,E2)) by
-			//   |Dot(D,N)|*b1 = sign(Dot(D,N))*Dot(D,Cross(Q,E2))
-			//   |Dot(D,N)|*b2 = sign(Dot(D,N))*Dot(D,Cross(E1,Q))
-			//   |Dot(D,N)|*t = -sign(Dot(D,N))*Dot(Q,N)
-			var DdN = this.direction.dot( normal );
-			var sign;
+		let dkx, dky, dkz;
+		let akx, aky, akz, bkx, bky, bkz, ckx, cky, ckz;
 
-			if ( DdN > 0 ) {
+		if ( adx >= ady && adx >= adz ) {
 
-				if ( backfaceCulling ) return null;
-				sign = 1;
+			dkz = dx; akz = aox; bkz = box; ckz = cox;
 
-			} else if ( DdN < 0 ) {
+			if ( dx >= 0 ) {
 
-				sign = - 1;
-				DdN = - DdN;
+				dkx = dy; dky = dz;
+				akx = aoy; aky = aoz; bkx = boy; bky = boz; ckx = coy; cky = coz;
 
 			} else {
 
-				return null;
+				dkx = dz; dky = dy;
+				akx = aoz; aky = aoy; bkx = boz; bky = boy; ckx = coz; cky = coy;
 
 			}
 
-			diff.subVectors( this.origin, a );
-			var DdQxE2 = sign * this.direction.dot( edge2.crossVectors( diff, edge2 ) );
+		} else if ( ady >= adz ) {
 
-			// b1 < 0, no intersection
-			if ( DdQxE2 < 0 ) {
+			dkz = dy; akz = aoy; bkz = boy; ckz = coy;
 
-				return null;
+			if ( dy >= 0 ) {
 
-			}
+				dkx = dz; dky = dx;
+				akx = aoz; aky = aox; bkx = boz; bky = box; ckx = coz; cky = cox;
 
-			var DdE1xQ = sign * this.direction.dot( edge1.cross( diff ) );
+			} else {
 
-			// b2 < 0, no intersection
-			if ( DdE1xQ < 0 ) {
-
-				return null;
+				dkx = dx; dky = dz;
+				akx = aox; aky = aoz; bkx = box; bky = boz; ckx = cox; cky = coz;
 
 			}
 
-			// b1+b2 > 1, no intersection
-			if ( DdQxE2 + DdE1xQ > DdN ) {
+		} else {
 
-				return null;
+			dkz = dz; akz = aoz; bkz = boz; ckz = coz;
+
+			if ( dz >= 0 ) {
+
+				dkx = dx; dky = dy;
+				akx = aox; aky = aoy; bkx = box; bky = boy; ckx = cox; cky = coy;
+
+			} else {
+
+				dkx = dy; dky = dx;
+				akx = aoy; aky = aox; bkx = boy; bky = box; ckx = coy; cky = cox;
 
 			}
 
-			// Line intersects triangle, check if ray does.
-			var QdN = - sign * diff.dot( normal );
+		}
 
-			// t < 0, no intersection
-			if ( QdN < 0 ) {
+		// a zero direction has no maximal axis and cannot intersect
 
-				return null;
+		if ( dkz === 0 ) return null;
 
-			}
+		// shear constants that align the ray with the +kz axis
 
-			// Ray intersects triangle.
-			return this.at( QdN / DdN, optionalTarget );
+		const sx = dkx / dkz, sy = dky / dkz, sz = 1 / dkz;
 
-		};
+		// sheared and scaled vertices
 
-	}(),
+		const ax = akx - sx * akz, ay = aky - sy * akz;
+		const bx = bkx - sx * bkz, by = bky - sy * bkz;
+		const cx = ckx - sx * ckz, cy = cky - sy * ckz;
 
-	applyMatrix4: function ( matrix4 ) {
+		// scaled barycentric coordinates (signed edge functions); the shear makes a
+		// shared edge evaluate identically for both adjacent triangles, so the ray
+		// can never fall between them
 
-		this.direction.add( this.origin ).applyMatrix4( matrix4 );
+		const u = cx * by - cy * bx;
+		const v = ax * cy - ay * cx;
+		const w = bx * ay - by * ax;
+
+		if ( backfaceCulling ) {
+
+			if ( u < 0 || v < 0 || w < 0 ) return null;
+
+		} else {
+
+			if ( ( u < 0 || v < 0 || w < 0 ) && ( u > 0 || v > 0 || w > 0 ) ) return null;
+
+		}
+
+		const det = u + v + w;
+
+		// ray is co-planar with the triangle
+
+		if ( det === 0 ) return null;
+
+		// scaled hit distance; t = tScaled / det must lie in front of the origin
+
+		const tScaled = sz * ( u * akz + v * bkz + w * ckz );
+
+		if ( det > 0 ? tScaled < 0 : tScaled > 0 ) return null;
+
+		return this.at( tScaled / det, target );
+
+	}
+
+	/**
+	 * Transforms this ray with the given 4x4 transformation matrix.
+	 *
+	 * @param {Matrix4} matrix4 - The transformation matrix.
+	 * @return {Ray} A reference to this ray.
+	 */
+	applyMatrix4( matrix4 ) {
+
 		this.origin.applyMatrix4( matrix4 );
-		this.direction.sub( this.origin );
-		this.direction.normalize();
+		this.direction.transformDirection( matrix4 );
 
 		return this;
 
-	},
+	}
 
-	equals: function ( ray ) {
+	/**
+	 * Returns `true` if this ray is equal with the given one.
+	 *
+	 * @param {Ray} ray - The ray to test for equality.
+	 * @return {boolean} Whether this ray is equal with the given one.
+	 */
+	equals( ray ) {
 
 		return ray.origin.equals( this.origin ) && ray.direction.equals( this.direction );
 
 	}
 
-} );
+	/**
+	 * Returns a new ray with copied values from this instance.
+	 *
+	 * @return {Ray} A clone of this instance.
+	 */
+	clone() {
 
+		return new this.constructor().copy( this );
+
+	}
+
+}
 
 export { Ray };

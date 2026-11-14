@@ -1,31 +1,27 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+function Storage() {
 
-var Storage = function () {
+	const indexedDB = window.indexedDB;
 
-	var indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
-
-	if ( indexedDB === undefined  ) {
+	if ( indexedDB === undefined ) {
 
 		console.warn( 'Storage: IndexedDB not available.' );
 		return { init: function () {}, get: function () {}, set: function () {}, clear: function () {} };
 
 	}
 
-	var name = 'threejs-editor';
-	var version = 1;
+	const name = 'threejs-editor';
+	const version = 1;
 
-	var database;
+	let database;
 
 	return {
 
 		init: function ( callback ) {
 
-			var request = indexedDB.open( name, version );
+			const request = indexedDB.open( name, version );
 			request.onupgradeneeded = function ( event ) {
 
-				var db = event.target.result;
+				const db = event.target.result;
 
 				if ( db.objectStoreNames.contains( 'states' ) === false ) {
 
@@ -34,6 +30,7 @@ var Storage = function () {
 				}
 
 			};
+
 			request.onsuccess = function ( event ) {
 
 				database = event.target.result;
@@ -41,9 +38,10 @@ var Storage = function () {
 				callback();
 
 			};
+
 			request.onerror = function ( event ) {
 
-				console.error( 'IndexedDB', event );
+				console.error( 'Storage: IndexedDB', event );
 
 			};
 
@@ -52,29 +50,62 @@ var Storage = function () {
 
 		get: function ( callback ) {
 
-			var transaction = database.transaction( [ 'states' ], 'readwrite' );
-			var objectStore = transaction.objectStore( 'states' );
-			var request = objectStore.get( 0 );
+			const retrievalStart = performance.now();
+
+			const transaction = database.transaction( [ 'states' ], 'readonly' );
+			const objectStore = transaction.objectStore( 'states' );
+
+			transaction.onerror = function ( event ) {
+
+				console.error( 'Storage: IndexedDB get failed:', event.target.error );
+
+			};
+
+			const request = objectStore.get( 0 );
 			request.onsuccess = function ( event ) {
 
+				const retrievalDuration = performance.now() - retrievalStart;
+
+				const hydrationStart = performance.now();
+
 				callback( event.target.result );
+
+				const hydrationDuration = performance.now() - hydrationStart;
+
+				const restorationDuration = retrievalDuration + hydrationDuration;
+
+				console.log(
+
+					'[' + /\d\d\:\d\d\:\d\d/.exec( new Date() )[ 0 ] + ']',
+
+					`Restored state. ${ restorationDuration.toFixed( 2 ) } ms. ( Retrieval: ${ retrievalDuration.toFixed( 2 ) } ms, Hydration: ${ hydrationDuration.toFixed( 2 ) } ms )`
+
+				);
 
 			};
 
 		},
 
-		set: function ( data, callback ) {
+		set: function ( data ) {
 
-			var start = performance.now();
+			const start = performance.now();
 
-			var transaction = database.transaction( [ 'states' ], 'readwrite' );
-			var objectStore = transaction.objectStore( 'states' );
-			var request = objectStore.put( data, 0 );
-			request.onsuccess = function ( event ) {
+			const transaction = database.transaction( [ 'states' ], 'readwrite' );
+			const objectStore = transaction.objectStore( 'states' );
+
+			transaction.oncomplete = function () {
 
 				console.log( '[' + /\d\d\:\d\d\:\d\d/.exec( new Date() )[ 0 ] + ']', 'Saved state to IndexedDB. ' + ( performance.now() - start ).toFixed( 2 ) + 'ms' );
 
 			};
+
+			transaction.onerror = function ( event ) {
+
+				console.error( 'Storage: IndexedDB put failed:', event.target.error );
+
+			};
+
+			objectStore.put( data, 0 );
 
 		},
 
@@ -82,17 +113,27 @@ var Storage = function () {
 
 			if ( database === undefined ) return;
 
-			var transaction = database.transaction( [ 'states' ], 'readwrite' );
-			var objectStore = transaction.objectStore( 'states' );
-			var request = objectStore.clear();
-			request.onsuccess = function ( event ) {
+			const transaction = database.transaction( [ 'states' ], 'readwrite' );
+			const objectStore = transaction.objectStore( 'states' );
+
+			transaction.oncomplete = function () {
 
 				console.log( '[' + /\d\d\:\d\d\:\d\d/.exec( new Date() )[ 0 ] + ']', 'Cleared IndexedDB.' );
 
 			};
 
+			transaction.onerror = function ( event ) {
+
+				console.error( 'Storage: IndexedDB clear failed:', event.target.error );
+
+			};
+
+			objectStore.clear();
+
 		}
 
 	};
 
-};
+}
+
+export { Storage };

@@ -1,47 +1,58 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import { UIPanel, UIRow, UISelect, UISpan, UIText } from './libs/ui.js';
 
-Sidebar.Settings = function ( editor ) {
+import { SidebarSettingsShortcuts } from './Sidebar.Settings.Shortcuts.js';
+import { SidebarSettingsHistory } from './Sidebar.Settings.History.js';
 
-	var config = editor.config;
-	var signals = editor.signals;
+function SidebarSettings( editor ) {
 
-	var container = new UI.Panel();
-	container.setBorderTop( '0' );
-	container.setPaddingTop( '20px' );
+	const config = editor.config;
+	const strings = editor.strings;
 
-	// class
+	const container = new UISpan();
 
-	var options = {
-		'css/light.css': 'light',
-		'css/dark.css': 'dark'
-	};
+	const settings = new UIPanel();
+	settings.setBorderTop( '0' );
+	settings.setPaddingTop( '20px' );
+	container.add( settings );
 
-	var themeRow = new UI.Row();
-	var theme = new UI.Select().setWidth( '150px' );
-	theme.setOptions( options );
+	// language
 
-	if ( config.getKey( 'theme' ) !== undefined ) {
+	const options = Object.fromEntries( [ 'en', 'fr', 'zh', 'ja', 'ko', 'fa' ].map( locale => {
 
-		theme.setValue( config.getKey( 'theme' ) );
+		return [ locale, new Intl.DisplayNames( locale, { type: 'language' } ).of( locale ) ];
+
+	} ) );
+
+	const languageRow = new UIRow();
+	const language = new UISelect().setWidth( '150px' );
+	language.setOptions( options );
+
+	if ( config.getKey( 'language' ) !== undefined ) {
+
+		language.setValue( config.getKey( 'language' ) );
 
 	}
 
-	theme.onChange( function () {
+	language.onChange( function () {
 
-		var value = this.getValue();
+		const value = this.getValue();
 
-		editor.setTheme( value );
-		editor.config.setKey( 'theme', value );
+		editor.config.setKey( 'language', value );
 
 	} );
 
-	themeRow.add( new UI.Text( 'Theme' ).setWidth( '90px' ) );
-	themeRow.add( theme );
+	languageRow.add( new UIText( strings.getKey( 'sidebar/settings/language' ) ).setClass( 'Label' ) );
+	languageRow.add( language );
 
-	container.add( themeRow );
+	settings.add( languageRow );
+
+	//
+
+	container.add( new SidebarSettingsShortcuts( editor ) );
+	container.add( new SidebarSettingsHistory( editor ) );
 
 	return container;
 
-};
+}
+
+export { SidebarSettings };

@@ -1,137 +1,160 @@
-/**
- * @author clockworkgeek / https://github.com/clockworkgeek
- * @author timothypratley / https://github.com/timothypratley
- * @author WestLangley / http://github.com/WestLangley
-*/
-
-import { Geometry } from '../core/Geometry';
-
-function PolyhedronGeometry( vertices, indices, radius, detail ) {
-
-	Geometry.call( this );
-
-	this.type = 'PolyhedronGeometry';
-
-	this.parameters = {
-		vertices: vertices,
-		indices: indices,
-		radius: radius,
-		detail: detail
-	};
-
-	this.fromBufferGeometry( new PolyhedronBufferGeometry( vertices, indices, radius, detail ) );
-	this.mergeVertices();
-
-}
-
-PolyhedronGeometry.prototype = Object.create( Geometry.prototype );
-PolyhedronGeometry.prototype.constructor = PolyhedronGeometry;
+import { BufferGeometry } from '../core/BufferGeometry.js';
+import { Float32BufferAttribute } from '../core/BufferAttribute.js';
+import { Vector3 } from '../math/Vector3.js';
+import { Vector2 } from '../math/Vector2.js';
 
 /**
- * @author Mugen87 / https://github.com/Mugen87
+ * A polyhedron is a solid in three dimensions with flat faces. This class
+ * will take an array of vertices, project them onto a sphere, and then
+ * divide them up to the desired level of detail.
+ *
+ * @augments BufferGeometry
  */
+class PolyhedronGeometry extends BufferGeometry {
 
-import { Float32BufferAttribute } from '../core/BufferAttribute';
-import { BufferGeometry } from '../core/BufferGeometry';
-import { Vector3 } from '../math/Vector3';
-import { Vector2 } from '../math/Vector2';
+	/**
+	 * Constructs a new polyhedron geometry.
+	 *
+	 * @param {Array<number>} [vertices] - A flat array of vertices describing the base shape.
+	 * @param {Array<number>} [indices] - A flat array of indices describing the base shape.
+	 * @param {number} [radius=1] - The radius of the shape.
+	 * @param {number} [detail=0] - How many levels to subdivide the geometry. The more detail, the smoother the shape.
+	 */
+	constructor( vertices = [], indices = [], radius = 1, detail = 0 ) {
 
-function PolyhedronBufferGeometry( vertices, indices, radius, detail ) {
+		super();
 
-	BufferGeometry.call( this );
+		this.type = 'PolyhedronGeometry';
 
-	this.type = 'PolyhedronBufferGeometry';
+		/**
+		 * Holds the constructor parameters that have been
+		 * used to generate the geometry. Any modification
+		 * after instantiation does not change the geometry.
+		 *
+		 * @type {Object}
+		 */
+		this.parameters = {
+			vertices: vertices,
+			indices: indices,
+			radius: radius,
+			detail: detail
+		};
 
-	this.parameters = {
-		vertices: vertices,
-		indices: indices,
-		radius: radius,
-		detail: detail
-	};
+		// default buffer data
 
-	radius = radius || 1;
-	detail = detail || 0;
+		const vertexBuffer = [];
+		const uvBuffer = [];
 
-	// default buffer data
+		// the subdivision creates the vertex buffer data
 
-	var vertexBuffer = [];
-	var uvBuffer = [];
+		subdivide( detail );
 
-	// the subdivision creates the vertex buffer data
+		// all vertices should lie on a conceptual sphere with a given radius
 
-	subdivide( detail );
+		applyRadius( radius );
 
-	// all vertices should lie on a conceptual sphere with a given radius
+		// finally, create the uv data
 
-	appplyRadius( radius );
+		generateUVs();
 
-	// finally, create the uv data
+		// build non-indexed geometry
 
-	generateUVs();
+		this.setAttribute( 'position', new Float32BufferAttribute( vertexBuffer, 3 ) );
+		this.setAttribute( 'normal', new Float32BufferAttribute( vertexBuffer.slice(), 3 ) );
+		this.setAttribute( 'uv', new Float32BufferAttribute( uvBuffer, 2 ) );
 
-	// build non-indexed geometry
+		if ( detail === 0 ) {
 
-	this.addAttribute( 'position', new Float32BufferAttribute( vertexBuffer, 3 ) );
-	this.addAttribute( 'normal', new Float32BufferAttribute( vertexBuffer.slice(), 3 ) );
-	this.addAttribute( 'uv', new Float32BufferAttribute( uvBuffer, 2 ) );
-	this.normalizeNormals();
+			this.computeVertexNormals(); // flat normals
 
-	// helper functions
+		} else {
 
-	function subdivide( detail ) {
-
-		var a = new Vector3();
-		var b = new Vector3();
-		var c = new Vector3();
-
-		// iterate over all faces and apply a subdivison with the given detail value
-
-		for ( var i = 0; i < indices.length; i += 3 ) {
-
-			// get the vertices of the face
-
-			getVertexByIndex( indices[ i + 0 ], a );
-			getVertexByIndex( indices[ i + 1 ], b );
-			getVertexByIndex( indices[ i + 2 ], c );
-
-			// perform subdivision
-
-			subdivideFace( a, b, c, detail );
+			this.normalizeNormals(); // smooth normals
 
 		}
 
-	}
+		// helper functions
 
-	function subdivideFace( a, b, c, detail ) {
+		function subdivide( detail ) {
 
-		var cols = Math.pow( 2, detail );
+			const a = new Vector3();
+			const b = new Vector3();
+			const c = new Vector3();
 
-		// we use this multidimensional array as a data structure for creating the subdivision
+			// iterate over all faces and apply a subdivision with the given detail value
 
-		var v = [];
+			for ( let i = 0; i < indices.length; i += 3 ) {
 
-		var i, j;
+				// get the vertices of the face
 
-		// construct all of the vertices for this subdivision
+				getVertexByIndex( indices[ i + 0 ], a );
+				getVertexByIndex( indices[ i + 1 ], b );
+				getVertexByIndex( indices[ i + 2 ], c );
 
-		for ( i = 0; i <= cols; i ++ ) {
+				// perform subdivision
 
-			v[ i ] = [];
+				subdivideFace( a, b, c, detail );
 
-			var aj = a.clone().lerp( c, i / cols );
-			var bj = b.clone().lerp( c, i / cols );
+			}
 
-			var rows = cols - i;
+		}
 
-			for ( j = 0; j <= rows; j ++ ) {
+		function subdivideFace( a, b, c, detail ) {
 
-				if ( j === 0 && i === cols ) {
+			const cols = detail + 1;
 
-					v[ i ][ j ] = aj;
+			// we use this multidimensional array as a data structure for creating the subdivision
 
-				} else {
+			const v = [];
 
-					v[ i ][ j ] = aj.clone().lerp( bj, j / rows );
+			// construct all of the vertices for this subdivision
+
+			for ( let i = 0; i <= cols; i ++ ) {
+
+				v[ i ] = [];
+
+				const aj = a.clone().lerp( c, i / cols );
+				const bj = b.clone().lerp( c, i / cols );
+
+				const rows = cols - i;
+
+				for ( let j = 0; j <= rows; j ++ ) {
+
+					if ( j === 0 && i === cols ) {
+
+						v[ i ][ j ] = aj;
+
+					} else {
+
+						v[ i ][ j ] = aj.clone().lerp( bj, j / rows );
+
+					}
+
+				}
+
+			}
+
+			// construct all of the faces
+
+			for ( let i = 0; i < cols; i ++ ) {
+
+				for ( let j = 0; j < 2 * ( cols - i ) - 1; j ++ ) {
+
+					const k = Math.floor( j / 2 );
+
+					if ( j % 2 === 0 ) {
+
+						pushVertex( v[ i ][ k + 1 ] );
+						pushVertex( v[ i + 1 ][ k ] );
+						pushVertex( v[ i ][ k ] );
+
+					} else {
+
+						pushVertex( v[ i ][ k + 1 ] );
+						pushVertex( v[ i + 1 ][ k + 1 ] );
+						pushVertex( v[ i + 1 ][ k ] );
+
+					}
 
 				}
 
@@ -139,25 +162,72 @@ function PolyhedronBufferGeometry( vertices, indices, radius, detail ) {
 
 		}
 
-		// construct all of the faces
+		function applyRadius( radius ) {
 
-		for ( i = 0; i < cols; i ++ ) {
+			const vertex = new Vector3();
 
-			for ( j = 0; j < 2 * ( cols - i ) - 1; j ++ ) {
+			// iterate over the entire buffer and apply the radius to each vertex
 
-				var k = Math.floor( j / 2 );
+			for ( let i = 0; i < vertexBuffer.length; i += 3 ) {
 
-				if ( j % 2 === 0 ) {
+				vertex.x = vertexBuffer[ i + 0 ];
+				vertex.y = vertexBuffer[ i + 1 ];
+				vertex.z = vertexBuffer[ i + 2 ];
 
-					pushVertex( v[ i ][ k + 1 ] );
-					pushVertex( v[ i + 1 ][ k ] );
-					pushVertex( v[ i ][ k ] );
+				vertex.normalize().multiplyScalar( radius );
 
-				} else {
+				vertexBuffer[ i + 0 ] = vertex.x;
+				vertexBuffer[ i + 1 ] = vertex.y;
+				vertexBuffer[ i + 2 ] = vertex.z;
 
-					pushVertex( v[ i ][ k + 1 ] );
-					pushVertex( v[ i + 1 ][ k + 1 ] );
-					pushVertex( v[ i + 1 ][ k ] );
+			}
+
+		}
+
+		function generateUVs() {
+
+			const vertex = new Vector3();
+
+			for ( let i = 0; i < vertexBuffer.length; i += 3 ) {
+
+				vertex.x = vertexBuffer[ i + 0 ];
+				vertex.y = vertexBuffer[ i + 1 ];
+				vertex.z = vertexBuffer[ i + 2 ];
+
+				const u = azimuth( vertex ) / 2 / Math.PI + 0.5;
+				const v = inclination( vertex ) / Math.PI + 0.5;
+				uvBuffer.push( u, 1 - v );
+
+			}
+
+			correctUVs();
+
+			correctSeam();
+
+		}
+
+		function correctSeam() {
+
+			// handle case when face straddles the seam, see #3269
+
+			for ( let i = 0; i < uvBuffer.length; i += 6 ) {
+
+				// uv data of a single face
+
+				const x0 = uvBuffer[ i + 0 ];
+				const x1 = uvBuffer[ i + 2 ];
+				const x2 = uvBuffer[ i + 4 ];
+
+				const max = Math.max( x0, x1, x2 );
+				const min = Math.min( x0, x1, x2 );
+
+				// 0.9 is somewhat arbitrary
+
+				if ( max > 0.9 && min < 0.1 ) {
+
+					if ( x0 < 0.2 ) uvBuffer[ i + 0 ] += 1;
+					if ( x1 < 0.2 ) uvBuffer[ i + 2 ] += 1;
+					if ( x2 < 0.2 ) uvBuffer[ i + 4 ] += 1;
 
 				}
 
@@ -165,167 +235,114 @@ function PolyhedronBufferGeometry( vertices, indices, radius, detail ) {
 
 		}
 
-	}
+		function pushVertex( vertex ) {
 
-	function appplyRadius( radius ) {
-
-		var vertex = new Vector3();
-
-		// iterate over the entire buffer and apply the radius to each vertex
-
-		for ( var i = 0; i < vertexBuffer.length; i += 3 ) {
-
-			vertex.x = vertexBuffer[ i + 0 ];
-			vertex.y = vertexBuffer[ i + 1 ];
-			vertex.z = vertexBuffer[ i + 2 ];
-
-			vertex.normalize().multiplyScalar( radius );
-
-			vertexBuffer[ i + 0 ] = vertex.x;
-			vertexBuffer[ i + 1 ] = vertex.y;
-			vertexBuffer[ i + 2 ] = vertex.z;
+			vertexBuffer.push( vertex.x, vertex.y, vertex.z );
 
 		}
 
-	}
+		function getVertexByIndex( index, vertex ) {
 
-	function generateUVs() {
+			const stride = index * 3;
 
-		var vertex = new Vector3();
-
-		for ( var i = 0; i < vertexBuffer.length; i += 3 ) {
-
-			vertex.x = vertexBuffer[ i + 0 ];
-			vertex.y = vertexBuffer[ i + 1 ];
-			vertex.z = vertexBuffer[ i + 2 ];
-
-			var u = azimuth( vertex ) / 2 / Math.PI + 0.5;
-			var v = inclination( vertex ) / Math.PI + 0.5;
-			uvBuffer.push( u, 1 - v );
+			vertex.x = vertices[ stride + 0 ];
+			vertex.y = vertices[ stride + 1 ];
+			vertex.z = vertices[ stride + 2 ];
 
 		}
 
-		correctUVs();
+		function correctUVs() {
 
-		correctSeam();
+			const a = new Vector3();
+			const b = new Vector3();
+			const c = new Vector3();
 
-	}
+			const centroid = new Vector3();
 
-	function correctSeam() {
+			const uvA = new Vector2();
+			const uvB = new Vector2();
+			const uvC = new Vector2();
 
-		// handle case when face straddles the seam, see #3269
+			for ( let i = 0, j = 0; i < vertexBuffer.length; i += 9, j += 6 ) {
 
-		for ( var i = 0; i < uvBuffer.length; i += 6 ) {
+				a.set( vertexBuffer[ i + 0 ], vertexBuffer[ i + 1 ], vertexBuffer[ i + 2 ] );
+				b.set( vertexBuffer[ i + 3 ], vertexBuffer[ i + 4 ], vertexBuffer[ i + 5 ] );
+				c.set( vertexBuffer[ i + 6 ], vertexBuffer[ i + 7 ], vertexBuffer[ i + 8 ] );
 
-			// uv data of a single face
+				uvA.set( uvBuffer[ j + 0 ], uvBuffer[ j + 1 ] );
+				uvB.set( uvBuffer[ j + 2 ], uvBuffer[ j + 3 ] );
+				uvC.set( uvBuffer[ j + 4 ], uvBuffer[ j + 5 ] );
 
-			var x0 = uvBuffer[ i + 0 ];
-			var x1 = uvBuffer[ i + 2 ];
-			var x2 = uvBuffer[ i + 4 ];
+				centroid.copy( a ).add( b ).add( c ).divideScalar( 3 );
 
-			var max = Math.max( x0, x1, x2 );
-			var min = Math.min( x0, x1, x2 );
+				const azi = azimuth( centroid );
 
-			// 0.9 is somewhat arbitrary
-
-			if ( max > 0.9 && min < 0.1 ) {
-
-				if ( x0 < 0.2 ) uvBuffer[ i + 0 ] += 1;
-				if ( x1 < 0.2 ) uvBuffer[ i + 2 ] += 1;
-				if ( x2 < 0.2 ) uvBuffer[ i + 4 ] += 1;
+				correctUV( uvA, j + 0, a, azi );
+				correctUV( uvB, j + 2, b, azi );
+				correctUV( uvC, j + 4, c, azi );
 
 			}
 
 		}
 
-	}
+		function correctUV( uv, stride, vector, azimuth ) {
 
-	function pushVertex( vertex ) {
+			if ( ( azimuth < 0 ) && ( uv.x === 1 ) ) {
 
-		vertexBuffer.push( vertex.x, vertex.y, vertex.z );
+				uvBuffer[ stride ] = uv.x - 1;
 
-	}
+			}
 
-	function getVertexByIndex( index, vertex ) {
+			if ( ( vector.x === 0 ) && ( vector.z === 0 ) ) {
 
-		var stride = index * 3;
+				uvBuffer[ stride ] = azimuth / 2 / Math.PI + 0.5;
 
-		vertex.x = vertices[ stride + 0 ];
-		vertex.y = vertices[ stride + 1 ];
-		vertex.z = vertices[ stride + 2 ];
+			}
 
-	}
+		}
 
-	function correctUVs() {
+		// Angle around the Y axis, counter-clockwise when looking from above.
 
-		var a = new Vector3();
-		var b = new Vector3();
-		var c = new Vector3();
+		function azimuth( vector ) {
 
-		var centroid = new Vector3();
+			return Math.atan2( vector.z, - vector.x );
 
-		var uvA = new Vector2();
-		var uvB = new Vector2();
-		var uvC = new Vector2();
+		}
 
-		for ( var i = 0, j = 0; i < vertexBuffer.length; i += 9, j += 6 ) {
 
-			a.set( vertexBuffer[ i + 0 ], vertexBuffer[ i + 1 ], vertexBuffer[ i + 2 ] );
-			b.set( vertexBuffer[ i + 3 ], vertexBuffer[ i + 4 ], vertexBuffer[ i + 5 ] );
-			c.set( vertexBuffer[ i + 6 ], vertexBuffer[ i + 7 ], vertexBuffer[ i + 8 ] );
+		// Angle above the XZ plane.
 
-			uvA.set( uvBuffer[ j + 0 ], uvBuffer[ j + 1 ] );
-			uvB.set( uvBuffer[ j + 2 ], uvBuffer[ j + 3 ] );
-			uvC.set( uvBuffer[ j + 4 ], uvBuffer[ j + 5 ] );
+		function inclination( vector ) {
 
-			centroid.copy( a ).add( b ).add( c ).divideScalar( 3 );
-
-			var azi = azimuth( centroid );
-
-			correctUV( uvA, j + 0, a, azi );
-			correctUV( uvB, j + 2, b, azi );
-			correctUV( uvC, j + 4, c, azi );
+			return Math.atan2( - vector.y, Math.sqrt( ( vector.x * vector.x ) + ( vector.z * vector.z ) ) );
 
 		}
 
 	}
 
-	function correctUV( uv, stride, vector, azimuth ) {
+	copy( source ) {
 
-		if ( ( azimuth < 0 ) && ( uv.x === 1 ) ) {
+		super.copy( source );
 
-			uvBuffer[ stride ] = uv.x - 1;
+		this.parameters = Object.assign( {}, source.parameters );
 
-		}
-
-		if ( ( vector.x === 0 ) && ( vector.z === 0 ) ) {
-
-			uvBuffer[ stride ] = azimuth / 2 / Math.PI + 0.5;
-
-		}
+		return this;
 
 	}
 
-	// Angle around the Y axis, counter-clockwise when looking from above.
+	/**
+	 * Factory method for creating an instance of this class from the given
+	 * JSON object.
+	 *
+	 * @param {Object} data - A JSON object representing the serialized geometry.
+	 * @return {PolyhedronGeometry} A new instance.
+	 */
+	static fromJSON( data ) {
 
-	function azimuth( vector ) {
-
-		return Math.atan2( vector.z, - vector.x );
-
-	}
-
-
-	// Angle above the XZ plane.
-
-	function inclination( vector ) {
-
-		return Math.atan2( - vector.y, Math.sqrt( ( vector.x * vector.x ) + ( vector.z * vector.z ) ) );
+		return new PolyhedronGeometry( data.vertices, data.indices, data.radius, data.detail );
 
 	}
 
 }
 
-PolyhedronBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
-PolyhedronBufferGeometry.prototype.constructor = PolyhedronBufferGeometry;
-
-export { PolyhedronGeometry, PolyhedronBufferGeometry };
+export { PolyhedronGeometry };

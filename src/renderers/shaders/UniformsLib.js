@@ -1,55 +1,63 @@
-import { Vector4 } from '../../math/Vector4';
-import { Color } from '../../math/Color';
-import { Vector2 } from '../../math/Vector2';
-import { DataTexture } from '../../textures/DataTexture';
+import { Color } from '../../math/Color.js';
+import { Vector2 } from '../../math/Vector2.js';
+import { Matrix3 } from '../../math/Matrix3.js';
 
-/**
- * Uniforms library for shared webgl shaders
- */
-
-var UniformsLib = {
+// Uniforms library for shared webgl shaders
+const UniformsLib = {
 
 	common: {
 
-		diffuse: { value: new Color( 0xeeeeee ) },
+		diffuse: { value: /*@__PURE__*/ new Color( 0xffffff ) },
 		opacity: { value: 1.0 },
 
 		map: { value: null },
-		offsetRepeat: { value: new Vector4( 0, 0, 1, 1 ) },
+		mapTransform: { value: /*@__PURE__*/ new Matrix3() },
+
+		alphaMap: { value: null },
+		alphaMapTransform: { value: /*@__PURE__*/ new Matrix3() },
+
+		alphaTest: { value: 0 }
+
+	},
+
+	specularmap: {
 
 		specularMap: { value: null },
-		alphaMap: { value: null },
+		specularMapTransform: { value: /*@__PURE__*/ new Matrix3() }
+
+	},
+
+	envmap: {
 
 		envMap: { value: null },
-		flipEnvMap: { value: - 1 },
-		reflectivity: { value: 1.0 },
-		refractionRatio: { value: 0.98 }
+		envMapRotation: { value: /*@__PURE__*/ new Matrix3() },
+		reflectivity: { value: 1.0 }, // basic, lambert, phong
+		ior: { value: 1.5 }, // physical
+		refractionRatio: { value: 0.98 }, // basic, lambert, phong
+		dfgLUT: { value: null } // DFG LUT for physically-based rendering
 
 	},
 
 	aomap: {
 
 		aoMap: { value: null },
-		aoMapIntensity: { value: 1 }
+		aoMapIntensity: { value: 1 },
+		aoMapTransform: { value: /*@__PURE__*/ new Matrix3() }
 
 	},
 
 	lightmap: {
 
 		lightMap: { value: null },
-		lightMapIntensity: { value: 1 }
-
-	},
-
-	emissivemap: {
-
-		emissiveMap: { value: null }
+		lightMapIntensity: { value: 1 },
+		lightMapTransform: { value: /*@__PURE__*/ new Matrix3() }
 
 	},
 
 	bumpmap: {
 
 		bumpMap: { value: null },
+		bumpMapTransform: { value: /*@__PURE__*/ new Matrix3() },
 		bumpScale: { value: 1 }
 
 	},
@@ -57,27 +65,38 @@ var UniformsLib = {
 	normalmap: {
 
 		normalMap: { value: null },
-		normalScale: { value: new Vector2( 1, 1 ) }
+		normalMapTransform: { value: /*@__PURE__*/ new Matrix3() },
+		normalScale: { value: /*@__PURE__*/ new Vector2( 1, 1 ) }
 
 	},
 
 	displacementmap: {
 
 		displacementMap: { value: null },
+		displacementMapTransform: { value: /*@__PURE__*/ new Matrix3() },
 		displacementScale: { value: 1 },
 		displacementBias: { value: 0 }
 
 	},
 
-	roughnessmap: {
+	emissivemap: {
 
-		roughnessMap: { value: null }
+		emissiveMap: { value: null },
+		emissiveMapTransform: { value: /*@__PURE__*/ new Matrix3() }
 
 	},
 
 	metalnessmap: {
 
-		metalnessMap: { value: null }
+		metalnessMap: { value: null },
+		metalnessMapTransform: { value: /*@__PURE__*/ new Matrix3() }
+
+	},
+
+	roughnessmap: {
+
+		roughnessMap: { value: null },
+		roughnessMapTransform: { value: /*@__PURE__*/ new Matrix3() }
 
 	},
 
@@ -92,7 +111,7 @@ var UniformsLib = {
 		fogDensity: { value: 0.00025 },
 		fogNear: { value: 1 },
 		fogFar: { value: 2000 },
-		fogColor: { value: new Color( 0xffffff ) }
+		fogColor: { value: /*@__PURE__*/ new Color( 0xffffff ) }
 
 	},
 
@@ -100,17 +119,37 @@ var UniformsLib = {
 
 		ambientLightColor: { value: [] },
 
-		directionalLights: { value: [], properties: {
-			direction: {},
-			color: {},
+		lightProbe: { value: [] },
 
-			shadow: {},
+		sunLights: { value: [], properties: {
+			direction: {},
+			color: {}
+		} },
+
+		sunLightShadows: { value: [], properties: {
+			shadowIntensity: 1,
 			shadowBias: {},
+			shadowNormalBias: {},
 			shadowRadius: {},
 			shadowMapSize: {}
 		} },
 
-		directionalShadowMap: { value: [] },
+		sunShadowMatrix: { value: [] },
+		sunShadowCascade: { value: [] },
+
+		directionalLights: { value: [], properties: {
+			direction: {},
+			color: {}
+		} },
+
+		directionalLightShadows: { value: [], properties: {
+			shadowIntensity: 1,
+			shadowBias: {},
+			shadowNormalBias: {},
+			shadowRadius: {},
+			shadowMapSize: {}
+		} },
+
 		directionalShadowMatrix: { value: [] },
 
 		spotLights: { value: [], properties: {
@@ -120,30 +159,37 @@ var UniformsLib = {
 			distance: {},
 			coneCos: {},
 			penumbraCos: {},
-			decay: {},
+			decay: {}
+		} },
 
-			shadow: {},
+		spotLightShadows: { value: [], properties: {
+			shadowIntensity: 1,
 			shadowBias: {},
+			shadowNormalBias: {},
 			shadowRadius: {},
 			shadowMapSize: {}
 		} },
 
-		spotShadowMap: { value: [] },
-		spotShadowMatrix: { value: [] },
+		spotLightMap: { value: [] },
+		spotLightMatrix: { value: [] },
 
 		pointLights: { value: [], properties: {
 			color: {},
 			position: {},
 			decay: {},
-			distance: {},
-
-			shadow: {},
-			shadowBias: {},
-			shadowRadius: {},
-			shadowMapSize: {}
+			distance: {}
 		} },
 
-		pointShadowMap: { value: [] },
+		pointLightShadows: { value: [], properties: {
+			shadowIntensity: 1,
+			shadowBias: {},
+			shadowNormalBias: {},
+			shadowRadius: {},
+			shadowMapSize: {},
+			shadowCameraNear: {},
+			shadowCameraFar: {}
+		} },
+
 		pointShadowMatrix: { value: [] },
 
 		hemisphereLights: { value: [], properties: {
@@ -158,18 +204,43 @@ var UniformsLib = {
 			position: {},
 			width: {},
 			height: {}
-		} }
+		} },
+
+		ltc_1: { value: null },
+		ltc_2: { value: null },
+
+		probesSH: { value: [] },
+		probesMin: { value: [] },
+		probesMax: { value: [] },
+		probesResolution: { value: [] }
 
 	},
 
 	points: {
 
-		diffuse: { value: new Color( 0xeeeeee ) },
+		diffuse: { value: /*@__PURE__*/ new Color( 0xffffff ) },
 		opacity: { value: 1.0 },
 		size: { value: 1.0 },
 		scale: { value: 1.0 },
 		map: { value: null },
-		offsetRepeat: { value: new Vector4( 0, 0, 1, 1 ) }
+		alphaMap: { value: null },
+		alphaMapTransform: { value: /*@__PURE__*/ new Matrix3() },
+		alphaTest: { value: 0 },
+		uvTransform: { value: /*@__PURE__*/ new Matrix3() }
+
+	},
+
+	sprite: {
+
+		diffuse: { value: /*@__PURE__*/ new Color( 0xffffff ) },
+		opacity: { value: 1.0 },
+		center: { value: /*@__PURE__*/ new Vector2( 0.5, 0.5 ) },
+		rotation: { value: 0.0 },
+		map: { value: null },
+		mapTransform: { value: /*@__PURE__*/ new Matrix3() },
+		alphaMap: { value: null },
+		alphaMapTransform: { value: /*@__PURE__*/ new Matrix3() },
+		alphaTest: { value: 0 }
 
 	}
 

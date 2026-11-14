@@ -1,38 +1,55 @@
-import { InterpolateDiscrete } from '../../constants';
-import { KeyframeTrackPrototype } from '../KeyframeTrackPrototype';
-import { KeyframeTrackConstructor } from '../KeyframeTrackConstructor';
+import { InterpolateDiscrete } from '../../constants.js';
+import { KeyframeTrack } from '../KeyframeTrack.js';
 
 /**
+ * A track for string keyframe values.
  *
- * A Track that interpolates Strings
- *
- *
- * @author Ben Houston / http://clara.io/
- * @author David Sarno / http://lighthaus.us/
- * @author tschw
+ * @augments KeyframeTrack
  */
+class StringKeyframeTrack extends KeyframeTrack {
 
-function StringKeyframeTrack( name, times, values, interpolation ) {
+	/**
+	 * Constructs a new string keyframe track.
+	 *
+	 * This keyframe track type has no `interpolation` parameter because the
+	 * interpolation is always discrete.
+	 *
+	 * @param {string} name - The keyframe track's name.
+	 * @param {Array<number>} times - A list of keyframe times.
+	 * @param {Array<string>} values - A list of keyframe values.
+	 */
+	constructor( name, times, values ) {
 
-	KeyframeTrackConstructor.call( this, name, times, values, interpolation );
+		super( name, times, values );
+
+	}
 
 }
 
-StringKeyframeTrack.prototype =
-		Object.assign( Object.create( KeyframeTrackPrototype ), {
+/**
+ * The value type name.
+ *
+ * @type {string}
+ * @default 'string'
+ */
+StringKeyframeTrack.prototype.ValueTypeName = 'string';
 
-	constructor: StringKeyframeTrack,
+/**
+ * The value buffer type of this keyframe track.
+ *
+ * @type {TypedArray|Array}
+ * @default Array.constructor
+ */
+StringKeyframeTrack.prototype.ValueBufferType = Array;
 
-	ValueTypeName: 'string',
-	ValueBufferType: Array,
-
-	DefaultInterpolation: InterpolateDiscrete,
-
-	InterpolantFactoryMethodLinear: undefined,
-
-	InterpolantFactoryMethodSmooth: undefined
-
-} );
-
+/**
+ * The default interpolation type of this keyframe track.
+ *
+ * @type {(InterpolateLinear|InterpolateDiscrete|InterpolateSmooth)}
+ * @default InterpolateDiscrete
+ */
+StringKeyframeTrack.prototype.DefaultInterpolation = InterpolateDiscrete;
+StringKeyframeTrack.prototype.InterpolantFactoryMethodLinear = undefined;
+StringKeyframeTrack.prototype.InterpolantFactoryMethodSmooth = undefined;
 
 export { StringKeyframeTrack };

@@ -1,38 +1,104 @@
-import { Texture } from './Texture';
-import { NearestFilter, UnsignedShortType, UnsignedInt248Type, DepthFormat, DepthStencilFormat } from '../constants';
+import { TextureSource } from './TextureSource.js';
+import { Texture } from './Texture.js';
+import { NearestFilter, UnsignedIntType, DepthFormat, DepthStencilFormat } from '../constants.js';
 
 /**
- * @author Matt DesLauriers / @mattdesl
- * @author atix / arthursilber.de
+ * This class can be used to automatically save the depth information of a
+ * rendering into a texture.
+ *
+ * @augments Texture
  */
+class DepthTexture extends Texture {
 
-function DepthTexture( width, height, type, mapping, wrapS, wrapT, magFilter, minFilter, anisotropy, format ) {
+	/**
+	 * Constructs a new depth texture.
+	 *
+	 * @param {number} width - The width of the texture.
+	 * @param {number} height - The height of the texture.
+	 * @param {number} [type=UnsignedIntType] - The texture type.
+	 * @param {number} [mapping=Texture.DEFAULT_MAPPING] - The texture mapping.
+	 * @param {number} [wrapS=ClampToEdgeWrapping] - The wrapS value.
+	 * @param {number} [wrapT=ClampToEdgeWrapping] - The wrapT value.
+	 * @param {number} [magFilter=NearestFilter] - The mag filter value.
+	 * @param {number} [minFilter=NearestFilter] - The min filter value.
+	 * @param {number} [anisotropy=Texture.DEFAULT_ANISOTROPY] - The anisotropy value.
+	 * @param {number} [format=DepthFormat] - The texture format.
+	 * @param {number} [depth=1] - The depth of the texture.
+	 */
+	constructor( width, height, type = UnsignedIntType, mapping, wrapS, wrapT, magFilter = NearestFilter, minFilter = NearestFilter, anisotropy, format = DepthFormat, depth = 1 ) {
 
-	format = format !== undefined ? format : DepthFormat;
+		if ( format !== DepthFormat && format !== DepthStencilFormat ) {
 
-	if ( format !== DepthFormat && format !== DepthStencilFormat ) {
+			throw new Error( 'THREE.DepthTexture: format must be either THREE.DepthFormat or THREE.DepthStencilFormat' );
 
-		throw new Error( 'DepthTexture format must be either THREE.DepthFormat or THREE.DepthStencilFormat' )
+		}
+
+		const image = { width: width, height: height, depth: depth };
+
+		super( image, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy );
+
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isDepthTexture = true;
+
+		/**
+		 * If set to `true`, the texture is flipped along the vertical axis when
+		 * uploaded to the GPU.
+		 *
+		 * Overwritten and set to `false` by default.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.flipY = false;
+
+		/**
+		 * Whether to generate mipmaps (if possible) for a texture.
+		 *
+		 * Overwritten and set to `false` by default.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.generateMipmaps = false;
+
+		/**
+		 * Code corresponding to the depth compare function.
+		 *
+		 * @type {?(NeverCompare|LessCompare|EqualCompare|LessEqualCompare|GreaterCompare|NotEqualCompare|GreaterEqualCompare|AlwaysCompare)}
+		 * @default null
+		 */
+		this.compareFunction = null;
 
 	}
 
-	if ( type === undefined && format === DepthFormat ) type = UnsignedShortType;
-	if ( type === undefined && format === DepthStencilFormat ) type = UnsignedInt248Type;
 
-	Texture.call( this, null, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy );
+	copy( source ) {
 
-	this.image = { width: width, height: height };
+		super.copy( source );
 
-	this.magFilter = magFilter !== undefined ? magFilter : NearestFilter;
-	this.minFilter = minFilter !== undefined ? minFilter : NearestFilter;
+		this.source = new TextureSource( Object.assign( {}, source.image ) ); // see #30540
+		this.compareFunction = source.compareFunction;
 
-	this.flipY = false;
-	this.generateMipmaps	= false;
+		return this;
+
+	}
+
+	toJSON( meta ) {
+
+		const data = super.toJSON( meta );
+
+		data.compareFunction = this.compareFunction;
+
+		return data;
+
+	}
 
 }
-
-DepthTexture.prototype = Object.create( Texture.prototype );
-DepthTexture.prototype.constructor = DepthTexture;
-DepthTexture.prototype.isDepthTexture = true;
 
 export { DepthTexture };

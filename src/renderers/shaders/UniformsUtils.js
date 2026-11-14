@@ -1,67 +1,154 @@
+import { ColorManagement } from '../../math/ColorManagement.js';
+import { warn } from '../../utils.js';
+
 /**
- * Uniform Utilities
+ * Provides utility functions for managing uniforms.
+ *
+ * @module UniformsUtils
  */
 
-var UniformsUtils = {
+/**
+ * Clones the given uniform definitions by performing a deep-copy. That means
+ * if the value of a uniform refers to an object like a Vector3 or Texture,
+ * the cloned uniform will refer to a new object reference.
+ *
+ * @param {Object} src - An object representing uniform definitions.
+ * @return {Object} The cloned uniforms.
+ */
+export function cloneUniforms( src ) {
 
-	merge: function ( uniforms ) {
+	const dst = {};
 
-		var merged = {};
+	for ( const u in src ) {
 
-		for ( var u = 0; u < uniforms.length; u ++ ) {
+		dst[ u ] = {};
 
-			var tmp = this.clone( uniforms[ u ] );
+		for ( const p in src[ u ] ) {
 
-			for ( var p in tmp ) {
+			const property = src[ u ][ p ];
 
-				merged[ p ] = tmp[ p ];
+			if ( isThreeObject( property ) ) {
 
-			}
+				if ( property.isRenderTargetTexture ) {
 
-		}
-
-		return merged;
-
-	},
-
-	clone: function ( uniforms_src ) {
-
-		var uniforms_dst = {};
-
-		for ( var u in uniforms_src ) {
-
-			uniforms_dst[ u ] = {};
-
-			for ( var p in uniforms_src[ u ] ) {
-
-				var parameter_src = uniforms_src[ u ][ p ];
-
-				if ( parameter_src && ( parameter_src.isColor ||
-					parameter_src.isMatrix3 || parameter_src.isMatrix4 ||
-					parameter_src.isVector2 || parameter_src.isVector3 || parameter_src.isVector4 ||
-					parameter_src.isTexture ) ) {
-
-					uniforms_dst[ u ][ p ] = parameter_src.clone();
-
-				} else if ( Array.isArray( parameter_src ) ) {
-
-					uniforms_dst[ u ][ p ] = parameter_src.slice();
+					warn( 'UniformsUtils: Textures of render targets cannot be cloned via cloneUniforms() or mergeUniforms().' );
+					dst[ u ][ p ] = null;
 
 				} else {
 
-					uniforms_dst[ u ][ p ] = parameter_src;
+					dst[ u ][ p ] = property.clone();
 
 				}
+
+			} else if ( Array.isArray( property ) ) {
+
+				if ( isThreeObject( property[ 0 ] ) ) {
+
+					const clonedProperty = [];
+
+					for ( let i = 0, l = property.length; i < l; i ++ ) {
+
+						clonedProperty[ i ] = property[ i ].clone();
+
+					}
+
+					dst[ u ][ p ] = clonedProperty;
+
+				} else {
+
+					dst[ u ][ p ] = property.slice();
+
+				}
+
+			} else {
+
+				dst[ u ][ p ] = property;
 
 			}
 
 		}
 
-		return uniforms_dst;
+	}
+
+	return dst;
+
+}
+
+/**
+ * Merges the given uniform definitions into a single object. Since the
+ * method internally uses cloneUniforms(), it performs a deep-copy when
+ * producing the merged uniform definitions.
+ *
+ * @param {Array} uniforms - An array of objects containing uniform definitions.
+ * @return {Object} The merged uniforms.
+ */
+export function mergeUniforms( uniforms ) {
+
+	const merged = {};
+
+	for ( let u = 0; u < uniforms.length; u ++ ) {
+
+		const tmp = cloneUniforms( uniforms[ u ] );
+
+		for ( const p in tmp ) {
+
+			merged[ p ] = tmp[ p ];
+
+		}
 
 	}
 
-};
+	return merged;
 
+}
+
+function isThreeObject( property ) {
+
+	return ( property && ( property.isColor ||
+		property.isMatrix3 || property.isMatrix4 ||
+		property.isVector2 || property.isVector3 || property.isVector4 ||
+		property.isTexture || property.isQuaternion ) );
+
+}
+
+export function cloneUniformsGroups( src ) {
+
+	const dst = [];
+
+	for ( let u = 0; u < src.length; u ++ ) {
+
+		dst.push( src[ u ].clone() );
+
+	}
+
+	return dst;
+
+}
+
+export function getUnlitUniformColorSpace( renderer ) {
+
+	const currentRenderTarget = renderer.getRenderTarget();
+
+	if ( currentRenderTarget === null ) {
+
+		// https://github.com/mrdoob/three.js/pull/23937#issuecomment-1111067398
+		return renderer.outputColorSpace;
+
+	}
+
+	// https://github.com/mrdoob/three.js/issues/27868
+	if ( currentRenderTarget.isXRRenderTarget === true ) {
+
+		return currentRenderTarget.texture.colorSpace;
+
+	}
+
+	return ColorManagement.workingColorSpace;
+
+}
+
+// Legacy
+
+const UniformsUtils = { clone: cloneUniforms, merge: mergeUniforms };
 
 export { UniformsUtils };

@@ -1,40 +1,73 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import { UIDiv, UIButton, UIRow } from './libs/ui.js';
 
-Sidebar.Geometry.Modifiers = function ( editor, object ) {
+import { computeMikkTSpaceTangents } from 'three/addons/utils/BufferGeometryUtils.js';
+import * as MikkTSpace from 'three/addons/libs/mikktspace.module.js';
 
-	var signals = editor.signals;
+function SidebarGeometryModifiers( editor, object ) {
 
-	var container = new UI.Row().setPaddingLeft( '90px' );
+	const strings = editor.strings;
 
-	var geometry = object.geometry;
+	const signals = editor.signals;
+
+	const container = new UIDiv().setMarginLeft( '120px' );
+
+	const geometry = object.geometry;
 
 	// Compute Vertex Normals
 
-	var button = new UI.Button( 'Compute Vertex Normals' );
-	button.onClick( function () {
+	const computeVertexNormalsButton = new UIButton( strings.getKey( 'sidebar/geometry/compute_vertex_normals' ) );
+	computeVertexNormalsButton.onClick( function () {
 
 		geometry.computeVertexNormals();
-
-		if ( geometry instanceof THREE.BufferGeometry ) {
-
-			geometry.attributes.normal.needsUpdate = true;
-
-		} else {
-
-			geometry.normalsNeedUpdate = true;
-
-		}
 
 		signals.geometryChanged.dispatch( object );
 
 	} );
 
-	container.add( button );
+	const computeVertexNormalsRow = new UIRow();
+	computeVertexNormalsRow.add( computeVertexNormalsButton );
+	container.add( computeVertexNormalsRow );
+
+	// Compute Vertex Tangents
+
+	if ( geometry.hasAttribute( 'position' ) && geometry.hasAttribute( 'normal' ) && geometry.hasAttribute( 'uv' ) ) {
+
+		const computeVertexTangentsButton = new UIButton( strings.getKey( 'sidebar/geometry/compute_vertex_tangents' ) );
+		computeVertexTangentsButton.onClick( async function () {
+
+			await MikkTSpace.ready;
+
+			computeMikkTSpaceTangents( geometry, MikkTSpace );
+
+			signals.geometryChanged.dispatch( object );
+
+		} );
+
+		const computeVertexTangentsRow = new UIRow();
+		computeVertexTangentsRow.add( computeVertexTangentsButton );
+		container.add( computeVertexTangentsRow );
+
+	}
+
+	// Center Geometry
+
+	const centerButton = new UIButton( strings.getKey( 'sidebar/geometry/center' ) );
+	centerButton.onClick( function () {
+
+		geometry.center();
+
+		signals.geometryChanged.dispatch( object );
+
+	} );
+
+	const centerRow = new UIRow();
+	centerRow.add( centerButton );
+	container.add( centerRow );
 
 	//
 
 	return container;
 
-};
+}
+
+export { SidebarGeometryModifiers };

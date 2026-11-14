@@ -1,166 +1,211 @@
-import { Vector2 } from '../math/Vector2';
-import { FileLoader } from './FileLoader';
-import { DefaultLoadingManager } from './LoadingManager';
-import * as Materials from '../materials/Materials';
+import { FileLoader } from './FileLoader.js';
+import { Loader } from './Loader.js';
+import {
+	ShadowMaterial,
+	SpriteMaterial,
+	RawShaderMaterial,
+	ShaderMaterial,
+	PointsMaterial,
+	MeshPhysicalMaterial,
+	MeshStandardMaterial,
+	MeshPhongMaterial,
+	MeshToonMaterial,
+	MeshNormalMaterial,
+	MeshLambertMaterial,
+	MeshDepthMaterial,
+	MeshDistanceMaterial,
+	MeshBasicMaterial,
+	MeshMatcapMaterial,
+	LineDashedMaterial,
+	LineBasicMaterial,
+	Material,
+} from '../materials/Materials.js';
+import { error, warnOnce } from '../utils.js';
+
+const _customMaterials = {};
 
 /**
- * @author mrdoob / http://mrdoob.com/
+ * Class for loading materials. The files are internally
+ * loaded via {@link FileLoader}.
+ *
+ * ```js
+ * const loader = new THREE.MaterialLoader();
+ * const material = await loader.loadAsync( 'material.json' );
+ * ```
+ * This loader does not support node materials. Use {@link NodeMaterialLoader} instead.
+ *
+ * @augments Loader
  */
+class MaterialLoader extends Loader {
 
-function MaterialLoader( manager ) {
+	/**
+	 * Constructs a new material loader.
+	 *
+	 * @param {LoadingManager} [manager] - The loading manager.
+	 */
+	constructor( manager ) {
 
-	this.manager = ( manager !== undefined ) ? manager : DefaultLoadingManager;
-	this.textures = {};
+		super( manager );
 
-}
+		/**
+		 * A dictionary holding textures used by the material.
+		 *
+		 * @type {Object<string,Texture>}
+		 */
+		this.textures = {};
 
-Object.assign( MaterialLoader.prototype, {
+	}
 
-	load: function ( url, onLoad, onProgress, onError ) {
+	/**
+	 * Starts loading from the given URL and pass the loaded material to the `onLoad()` callback.
+	 *
+	 * @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	 * @param {function(Material)} onLoad - Executed when the loading process has been finished.
+	 * @param {onProgressCallback} onProgress - Executed while the loading is in progress.
+	 * @param {onErrorCallback} onError - Executed when errors occur.
+	 */
+	load( url, onLoad, onProgress, onError ) {
 
-		var scope = this;
+		const scope = this;
 
-		var loader = new FileLoader( scope.manager );
+		const loader = new FileLoader( scope.manager );
+		loader.setPriority( scope.priority );
+		loader.setCache( scope.cache );
+		loader.setPath( scope.path );
+		loader.setRequestHeader( scope.requestHeader );
+		loader.setWithCredentials( scope.withCredentials );
 		loader.load( url, function ( text ) {
 
-			onLoad( scope.parse( JSON.parse( text ) ) );
+			try {
+
+				onLoad( scope.parse( JSON.parse( text ) ) );
+
+			} catch ( e ) {
+
+				if ( onError ) {
+
+					onError( e );
+
+				} else {
+
+					error( e );
+
+				}
+
+				scope.manager.itemError( url );
+
+			}
 
 		}, onProgress, onError );
 
-	},
+	}
 
-	setTextures: function ( value ) {
+	/**
+	 * Parses the given JSON object and returns a material.
+	 *
+	 * @param {Object} json - The serialized material.
+	 * @return {Material} The parsed material.
+	 */
+	parse( json ) {
 
-		this.textures = value;
+		const material = this.createMaterialFromType( json.type );
 
-	},
-
-	parse: function ( json ) {
-
-		var textures = this.textures;
-
-		function getTexture( name ) {
-
-			if ( textures[ name ] === undefined ) {
-
-				console.warn( 'THREE.MaterialLoader: Undefined texture', name );
-
-			}
-
-			return textures[ name ];
-
-		}
-
-		var material = new Materials[ json.type ]();
-
-		if ( json.uuid !== undefined ) material.uuid = json.uuid;
-		if ( json.name !== undefined ) material.name = json.name;
-		if ( json.color !== undefined ) material.color.setHex( json.color );
-		if ( json.roughness !== undefined ) material.roughness = json.roughness;
-		if ( json.metalness !== undefined ) material.metalness = json.metalness;
-		if ( json.emissive !== undefined ) material.emissive.setHex( json.emissive );
-		if ( json.specular !== undefined ) material.specular.setHex( json.specular );
-		if ( json.shininess !== undefined ) material.shininess = json.shininess;
-		if ( json.clearCoat !== undefined ) material.clearCoat = json.clearCoat;
-		if ( json.clearCoatRoughness !== undefined ) material.clearCoatRoughness = json.clearCoatRoughness;
-		if ( json.uniforms !== undefined ) material.uniforms = json.uniforms;
-		if ( json.vertexShader !== undefined ) material.vertexShader = json.vertexShader;
-		if ( json.fragmentShader !== undefined ) material.fragmentShader = json.fragmentShader;
-		if ( json.vertexColors !== undefined ) material.vertexColors = json.vertexColors;
-		if ( json.fog !== undefined ) material.fog = json.fog;
-		if ( json.shading !== undefined ) material.shading = json.shading;
-		if ( json.blending !== undefined ) material.blending = json.blending;
-		if ( json.side !== undefined ) material.side = json.side;
-		if ( json.opacity !== undefined ) material.opacity = json.opacity;
-		if ( json.transparent !== undefined ) material.transparent = json.transparent;
-		if ( json.alphaTest !== undefined ) material.alphaTest = json.alphaTest;
-		if ( json.depthTest !== undefined ) material.depthTest = json.depthTest;
-		if ( json.depthWrite !== undefined ) material.depthWrite = json.depthWrite;
-		if ( json.colorWrite !== undefined ) material.colorWrite = json.colorWrite;
-		if ( json.wireframe !== undefined ) material.wireframe = json.wireframe;
-		if ( json.wireframeLinewidth !== undefined ) material.wireframeLinewidth = json.wireframeLinewidth;
-		if ( json.wireframeLinecap !== undefined ) material.wireframeLinecap = json.wireframeLinecap;
-		if ( json.wireframeLinejoin !== undefined ) material.wireframeLinejoin = json.wireframeLinejoin;
-		if ( json.skinning !== undefined ) material.skinning = json.skinning;
-		if ( json.morphTargets !== undefined ) material.morphTargets = json.morphTargets;
-
-		// for PointsMaterial
-
-		if ( json.size !== undefined ) material.size = json.size;
-		if ( json.sizeAttenuation !== undefined ) material.sizeAttenuation = json.sizeAttenuation;
-
-		// maps
-
-		if ( json.map !== undefined ) material.map = getTexture( json.map );
-
-		if ( json.alphaMap !== undefined ) {
-
-			material.alphaMap = getTexture( json.alphaMap );
-			material.transparent = true;
-
-		}
-
-		if ( json.bumpMap !== undefined ) material.bumpMap = getTexture( json.bumpMap );
-		if ( json.bumpScale !== undefined ) material.bumpScale = json.bumpScale;
-
-		if ( json.normalMap !== undefined ) material.normalMap = getTexture( json.normalMap );
-		if ( json.normalScale !== undefined ) {
-
-			var normalScale = json.normalScale;
-
-			if ( Array.isArray( normalScale ) === false ) {
-
-				// Blender exporter used to export a scalar. See #7459
-
-				normalScale = [ normalScale, normalScale ];
-
-			}
-
-			material.normalScale = new Vector2().fromArray( normalScale );
-
-		}
-
-		if ( json.displacementMap !== undefined ) material.displacementMap = getTexture( json.displacementMap );
-		if ( json.displacementScale !== undefined ) material.displacementScale = json.displacementScale;
-		if ( json.displacementBias !== undefined ) material.displacementBias = json.displacementBias;
-
-		if ( json.roughnessMap !== undefined ) material.roughnessMap = getTexture( json.roughnessMap );
-		if ( json.metalnessMap !== undefined ) material.metalnessMap = getTexture( json.metalnessMap );
-
-		if ( json.emissiveMap !== undefined ) material.emissiveMap = getTexture( json.emissiveMap );
-		if ( json.emissiveIntensity !== undefined ) material.emissiveIntensity = json.emissiveIntensity;
-
-		if ( json.specularMap !== undefined ) material.specularMap = getTexture( json.specularMap );
-
-		if ( json.envMap !== undefined ) material.envMap = getTexture( json.envMap );
-
-		if ( json.reflectivity !== undefined ) material.reflectivity = json.reflectivity;
-
-		if ( json.lightMap !== undefined ) material.lightMap = getTexture( json.lightMap );
-		if ( json.lightMapIntensity !== undefined ) material.lightMapIntensity = json.lightMapIntensity;
-
-		if ( json.aoMap !== undefined ) material.aoMap = getTexture( json.aoMap );
-		if ( json.aoMapIntensity !== undefined ) material.aoMapIntensity = json.aoMapIntensity;
-
-		if ( json.gradientMap !== undefined ) material.gradientMap = getTexture( json.gradientMap );
-
-		// MultiMaterial
-
-		if ( json.materials !== undefined ) {
-
-			for ( var i = 0, l = json.materials.length; i < l; i ++ ) {
-
-				material.materials.push( this.parse( json.materials[ i ] ) );
-
-			}
-
-		}
+		material.fromJSON( json, this.textures );
 
 		return material;
 
 	}
 
-} );
+	/**
+	 * Textures are not embedded in the material JSON so they have
+	 * to be injected before the loading process starts.
+	 *
+	 * @param {Object} value - A dictionary holding textures for material properties.
+	 * @return {MaterialLoader} A reference to this material loader.
+	 */
+	setTextures( value ) {
 
+		this.textures = value;
+		return this;
+
+	}
+
+	/**
+	 * Creates a material for the given type.
+	 *
+	 * @param {string} type - The material type.
+	 * @return {Material} The new material.
+	 */
+	createMaterialFromType( type ) {
+
+		return MaterialLoader.createMaterialFromType( type );
+
+	}
+
+	/**
+	 * Creates a material for the given type.
+	 *
+	 * @static
+	 * @param {string} type - The material type.
+	 * @return {Material} The new material.
+	 */
+	static createMaterialFromType( type ) {
+
+		const materialLib = {
+			ShadowMaterial,
+			SpriteMaterial,
+			RawShaderMaterial,
+			ShaderMaterial,
+			PointsMaterial,
+			MeshPhysicalMaterial,
+			MeshStandardMaterial,
+			MeshPhongMaterial,
+			MeshToonMaterial,
+			MeshNormalMaterial,
+			MeshLambertMaterial,
+			MeshDepthMaterial,
+			MeshDistanceMaterial,
+			MeshBasicMaterial,
+			MeshMatcapMaterial,
+			LineDashedMaterial,
+			LineBasicMaterial,
+			Material,
+			... _customMaterials
+		};
+
+		const MaterialType = materialLib[ type ];
+
+		let materialInstance;
+
+		if ( MaterialType === undefined ) {
+
+			warnOnce( `MaterialLoader: Unknown material type "${ type }". Use .registerMaterial() before starting the deserialization process.` );
+			materialInstance = new Material();
+
+		} else {
+
+			materialInstance = new MaterialType();
+
+		}
+
+		return materialInstance;
+
+	}
+
+	/**
+	 * Registers the given material at the internal
+	 * material library.
+	 *
+	 * @static
+	 * @param {string} type - The material type.
+	 * @param {Material.constructor} materialClass - The material class.
+	 */
+	static registerMaterial( type, materialClass ) {
+
+		_customMaterials[ type ] = materialClass;
+
+	}
+
+}
 
 export { MaterialLoader };

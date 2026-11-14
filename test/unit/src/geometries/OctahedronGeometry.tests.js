@@ -1,34 +1,65 @@
-(function() {
+import { OctahedronGeometry } from '../../../../src/geometries/OctahedronGeometry.js';
 
-	'use strict';
+import { PolyhedronGeometry } from '../../../../src/geometries/PolyhedronGeometry.js';
+import { runStdGeometryTests } from '../../utils/qunit-utils.js';
 
-	var parameters = {
-		radius: 10,
-		detail: undefined
-	};
+export default QUnit.module( 'Geometries', () => {
 
-	var geometries;
+	QUnit.module( 'OctahedronGeometry', ( hooks ) => {
 
-	QUnit.module( "Extras - Geometries - OctahedronGeometry", {
+		let geometries = undefined;
+		hooks.beforeEach( function () {
 
-		beforeEach: function() {
+			const parameters = {
+				radius: 10,
+				detail: undefined
+			};
 
 			geometries = [
-
-				new THREE.OctahedronGeometry(),
-				new THREE.OctahedronGeometry( parameters.radius ),
-				new THREE.OctahedronGeometry( parameters.radius, parameters.detail ),
-
+				new OctahedronGeometry(),
+				new OctahedronGeometry( parameters.radius ),
+				new OctahedronGeometry( parameters.radius, parameters.detail ),
 			];
 
-		}
+		} );
 
-	});
+		// INHERITANCE
+		QUnit.test( 'Extending', ( assert ) => {
 
-	QUnit.test( "standard geometry tests", function( assert ) {
+			const object = new OctahedronGeometry();
+			assert.strictEqual(
+				object instanceof PolyhedronGeometry, true,
+				'OctahedronGeometry extends from PolyhedronGeometry'
+			);
 
-		runStdGeometryTests( assert, geometries );
+		} );
 
-	});
+		// INSTANCING
+		QUnit.test( 'Instancing', ( assert ) => {
 
-})();
+			const object = new OctahedronGeometry();
+			assert.ok( object, 'Can instantiate an OctahedronGeometry.' );
+
+		} );
+
+		// PROPERTIES
+		QUnit.test( 'type', ( assert ) => {
+
+			const object = new OctahedronGeometry();
+			assert.ok(
+				object.type === 'OctahedronGeometry',
+				'OctahedronGeometry.type should be OctahedronGeometry'
+			);
+
+		} );
+
+		// OTHERS
+		QUnit.test( 'Standard geometry tests', ( assert ) => {
+
+			runStdGeometryTests( assert, geometries );
+
+		} );
+
+	} );
+
+} );

@@ -1,243 +1,369 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import { Cache } from './Cache.js';
+import { Loader } from './Loader.js';
+import { warn } from '../utils.js';
 
-import { Cache } from './Cache';
-import { DefaultLoadingManager } from './LoadingManager';
+const loading = {};
 
-function FileLoader( manager ) {
+class HttpError extends Error {
 
-	this.manager = ( manager !== undefined ) ? manager : DefaultLoadingManager;
+	constructor( message, response ) {
+
+		super( message );
+		this.response = response;
+
+	}
 
 }
 
-Object.assign( FileLoader.prototype, {
+/**
+ * A low level class for loading resources with the Fetch API, used internally by
+ * most loaders. It can also be used directly to load any file type that does
+ * not have a loader.
+ *
+ * This loader supports caching. If you want to use it, add `THREE.Cache.enabled = true;`
+ * once to your application.
+ *
+ * ```js
+ * const loader = new THREE.FileLoader();
+ * const data = await loader.loadAsync( 'example.txt' );
+ * ```
+ *
+ * @augments Loader
+ */
+class FileLoader extends Loader {
 
-	load: function ( url, onLoad, onProgress, onError ) {
+	/**
+	 * Constructs a new file loader.
+	 *
+	 * @param {LoadingManager} [manager] - The loading manager.
+	 */
+	constructor( manager ) {
+
+		super( manager );
+
+		/**
+		 * The expected mime type. Valid values can be found
+		 * [here](https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString#mimetype)
+		 *
+		 * @type {string}
+		 */
+		this.mimeType = '';
+
+		/**
+		 * The expected response type.
+		 *
+		 * @type {('arraybuffer'|'blob'|'document'|'json'|'')}
+		 * @default ''
+		 */
+		this.responseType = '';
+
+		/**
+		 * Used for aborting requests.
+		 *
+		 * @private
+		 * @type {AbortController}
+		 */
+		this._abortController = new AbortController();
+
+	}
+
+	/**
+	 * Starts loading from the given URL and pass the loaded response to the `onLoad()` callback.
+	 *
+	 * @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	 * @param {function(any)} onLoad - Executed when the loading process has been finished.
+	 * @param {onProgressCallback} [onProgress] - Executed while the loading is in progress.
+	 * @param {onErrorCallback} [onError] - Executed when errors occur.
+	 */
+	load( url, onLoad, onProgress, onError ) {
 
 		if ( url === undefined ) url = '';
 
 		if ( this.path !== undefined ) url = this.path + url;
 
-		var scope = this;
+		url = this.manager.resolveURL( url );
 
-		var cached = Cache.get( url );
+		const cached = Cache.get( `file:${url}` );
 
 		if ( cached !== undefined ) {
 
-			scope.manager.itemStart( url );
+			this.manager.itemStart( url );
 
-			setTimeout( function () {
+			setTimeout( () => {
 
 				if ( onLoad ) onLoad( cached );
 
-				scope.manager.itemEnd( url );
+				this.manager.itemEnd( url );
 
 			}, 0 );
 
-			return cached;
+			return;
 
 		}
 
-		// Check for data: URI
-		var dataUriRegex = /^data:(.*?)(;base64)?,(.*)$/;
-		var dataUriRegexResult = url.match( dataUriRegex );
+		// Check if request is duplicate
 
-		// Safari can not handle Data URIs through XMLHttpRequest so process manually
-		if ( dataUriRegexResult ) {
+		if ( loading[ url ] !== undefined ) {
 
-			var mimeType = dataUriRegexResult[ 1 ];
-			var isBase64 = !! dataUriRegexResult[ 2 ];
-			var data = dataUriRegexResult[ 3 ];
+			loading[ url ].push( {
 
-			data = window.decodeURIComponent( data );
+				onLoad: onLoad,
+				onProgress: onProgress,
+				onError: onError
 
-			if ( isBase64 ) data = window.atob( data );
+			} );
 
-			try {
+			return;
 
-				var response;
-				var responseType = ( this.responseType || '' ).toLowerCase();
+		}
 
-				switch ( responseType ) {
+		// Initialise array for duplicate requests
+		loading[ url ] = [];
 
-					case 'arraybuffer':
-					case 'blob':
+		loading[ url ].push( {
+			onLoad: onLoad,
+			onProgress: onProgress,
+			onError: onError,
+		} );
 
-					 	response = new ArrayBuffer( data.length );
+		// create request
+		const req = new Request( url, {
+			headers: new Headers( this.requestHeader ),
+			credentials: this.withCredentials ? 'include' : 'same-origin',
+			priority: this.priority,
+			cache: this.cache,
+			signal: ( typeof AbortSignal.any === 'function' ) ? AbortSignal.any( [ this._abortController.signal, this.manager.abortController.signal ] ) : this._abortController.signal
+		} );
 
-						var view = new Uint8Array( response );
+		// record states ( avoid data race )
+		const mimeType = this.mimeType;
+		const responseType = this.responseType;
 
-						for ( var i = 0; i < data.length; i ++ ) {
+		// start the fetch
+		fetch( req )
+			.then( response => {
 
-							view[ i ] = data.charCodeAt( i );
-
-						}
-
-						if ( responseType === 'blob' ) {
-
-							response = new Blob( [ response ], { type: mimeType } );
-
-						}
-
-						break;
-
-					case 'document':
-
-						var parser = new DOMParser();
-						response = parser.parseFromString( data, mimeType );
-
-						break;
-
-					case 'json':
-
-						response = JSON.parse( data );
-
-						break;
-
-					default: // 'text' or other
-
-						response = data;
-
-						break;
-
-				}
-
-				// Wait for next browser tick
-				window.setTimeout( function () {
-
-					if ( onLoad ) onLoad( response );
-
-					scope.manager.itemEnd( url );
-
-				}, 0 );
-
-			} catch ( error ) {
-
-				// Wait for next browser tick
-				window.setTimeout( function () {
-
-					if ( onError ) onError( error );
-
-					scope.manager.itemError( url );
-
-				}, 0 );
-
-			}
-
-		} else {
-
-			var request = new XMLHttpRequest();
-			request.open( 'GET', url, true );
-
-			request.addEventListener( 'load', function ( event ) {
-
-				var response = event.target.response;
-
-				Cache.add( url, response );
-
-				if ( this.status === 200 ) {
-
-					if ( onLoad ) onLoad( response );
-
-					scope.manager.itemEnd( url );
-
-				} else if ( this.status === 0 ) {
+				if ( response.status === 200 || response.status === 0 ) {
 
 					// Some browsers return HTTP Status 0 when using non-http protocol
 					// e.g. 'file://' or 'data://'. Handle as success.
 
-					console.warn( 'THREE.FileLoader: HTTP Status 0 received.' );
+					if ( response.status === 0 ) {
 
-					if ( onLoad ) onLoad( response );
+						warn( 'FileLoader: HTTP Status 0 received.' );
 
-					scope.manager.itemEnd( url );
+					}
+
+					// Workaround: Checking if response.body === undefined for Alipay browser #23548
+
+					if ( typeof ReadableStream === 'undefined' || response.body === undefined || response.body.getReader === undefined ) {
+
+						return response;
+
+					}
+
+					const callbacks = loading[ url ];
+					const reader = response.body.getReader();
+
+					// Nginx needs X-File-Size check
+					// https://serverfault.com/questions/482875/why-does-nginx-remove-content-length-header-for-chunked-content
+					const contentLength = response.headers.get( 'X-File-Size' ) || response.headers.get( 'Content-Length' );
+					const total = contentLength ? parseInt( contentLength ) : 0;
+					const lengthComputable = total !== 0;
+					let loaded = 0;
+
+					// periodically read data into the new stream tracking while download progress
+					const stream = new ReadableStream( {
+						start( controller ) {
+
+							readData();
+
+							function readData() {
+
+								reader.read().then( ( { done, value } ) => {
+
+									if ( done ) {
+
+										controller.close();
+
+									} else {
+
+										loaded += value.byteLength;
+
+										const event = new ProgressEvent( 'progress', { lengthComputable, loaded, total } );
+										for ( let i = 0, il = callbacks.length; i < il; i ++ ) {
+
+											const callback = callbacks[ i ];
+											if ( callback.onProgress ) callback.onProgress( event );
+
+										}
+
+										controller.enqueue( value );
+										readData();
+
+									}
+
+								}, ( e ) => {
+
+									controller.error( e );
+
+								} );
+
+							}
+
+						}
+
+					} );
+
+					return new Response( stream );
 
 				} else {
 
-					if ( onError ) onError( event );
-
-					scope.manager.itemError( url );
+					throw new HttpError( `fetch for "${response.url}" responded with ${response.status}: ${response.statusText}`, response );
 
 				}
 
-			}, false );
+			} )
+			.then( response => {
 
-			if ( onProgress !== undefined ) {
+				switch ( responseType ) {
 
-				request.addEventListener( 'progress', function ( event ) {
+					case 'arraybuffer':
 
-					onProgress( event );
+						return response.arrayBuffer();
 
-				}, false );
+					case 'blob':
 
-			}
+						return response.blob();
 
-			request.addEventListener( 'error', function ( event ) {
+					case 'document':
 
-				if ( onError ) onError( event );
+						return response.text()
+							.then( text => {
 
-				scope.manager.itemError( url );
+								const parser = new DOMParser();
+								return parser.parseFromString( text, mimeType );
 
-			}, false );
+							} );
 
-			if ( this.responseType !== undefined ) request.responseType = this.responseType;
-			if ( this.withCredentials !== undefined ) request.withCredentials = this.withCredentials;
+					case 'json':
 
-			if ( request.overrideMimeType ) request.overrideMimeType( this.mimeType !== undefined ? this.mimeType : 'text/plain' );
+						return response.json();
 
-			for ( var header in this.requestHeader ) {
+					default:
 
-				request.setRequestHeader( header, this.requestHeader[ header ] );
+						if ( mimeType === '' ) {
 
-			}
+							return response.text();
 
-			request.send( null );
+						} else {
 
-		}
+							// sniff encoding
+							const re = /charset="?([^;"\s]*)"?/i;
+							const exec = re.exec( mimeType );
+							const label = exec && exec[ 1 ] ? exec[ 1 ].toLowerCase() : undefined;
+							const decoder = new TextDecoder( label );
+							return response.arrayBuffer().then( ab => decoder.decode( ab ) );
 
-		scope.manager.itemStart( url );
+						}
 
-		return request;
+				}
 
-	},
+			} )
+			.then( data => {
 
-	setPath: function ( value ) {
+				// Add to cache only on HTTP success, so that we do not cache
+				// error response bodies as proper responses to requests.
+				Cache.add( `file:${url}`, data );
 
-		this.path = value;
-		return this;
+				const callbacks = loading[ url ];
+				delete loading[ url ];
 
-	},
+				for ( let i = 0, il = callbacks.length; i < il; i ++ ) {
 
-	setResponseType: function ( value ) {
+					const callback = callbacks[ i ];
+					if ( callback.onLoad ) callback.onLoad( data );
+
+				}
+
+			} )
+			.catch( err => {
+
+				// Abort errors and other errors are handled the same
+
+				const callbacks = loading[ url ];
+
+				if ( callbacks === undefined ) {
+
+					// When onLoad was called and url was deleted in `loading`
+					this.manager.itemError( url );
+					throw err;
+
+				}
+
+				delete loading[ url ];
+
+				for ( let i = 0, il = callbacks.length; i < il; i ++ ) {
+
+					const callback = callbacks[ i ];
+					if ( callback.onError ) callback.onError( err );
+
+				}
+
+				this.manager.itemError( url );
+
+			} )
+			.finally( () => {
+
+				this.manager.itemEnd( url );
+
+			} );
+
+		this.manager.itemStart( url );
+
+	}
+
+	/**
+	 * Sets the expected response type.
+	 *
+	 * @param {('arraybuffer'|'blob'|'document'|'json'|'')} value - The response type.
+	 * @return {FileLoader} A reference to this file loader.
+	 */
+	setResponseType( value ) {
 
 		this.responseType = value;
 		return this;
 
-	},
+	}
 
-	setWithCredentials: function ( value ) {
-
-		this.withCredentials = value;
-		return this;
-
-	},
-
-	setMimeType: function ( value ) {
+	/**
+	 * Sets the expected mime type of the loaded file.
+	 *
+	 * @param {string} value - The mime type.
+	 * @return {FileLoader} A reference to this file loader.
+	 */
+	setMimeType( value ) {
 
 		this.mimeType = value;
 		return this;
 
-	},
+	}
 
-	setRequestHeader: function ( value ) {
+	/**
+	 * Aborts ongoing fetch requests.
+	 *
+	 * @return {FileLoader} A reference to this instance.
+	 */
+	abort() {
 
-		this.requestHeader = value;
+		this._abortController.abort();
+		this._abortController = new AbortController();
+
 		return this;
 
 	}
 
-} );
+}
 
 
 export { FileLoader };

@@ -1,89 +1,179 @@
-/**
- * @author mrdoob / http://mrdoob.com/
- */
+import * as THREE from 'three';
 
-UI.Texture = function ( mapping ) {
+import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
-	UI.Element.call( this );
+import { UISpan, UIDiv, UIRow, UIButton, UICheckbox, UIText, UINumber } from './ui.js';
+import { MoveObjectCommand } from '../commands/MoveObjectCommand.js';
 
-	var scope = this;
+const cache = new Map();
 
-	var dom = document.createElement( 'span' );
+class UITexture extends UISpan {
 
-	var form = document.createElement( 'form' );
+	constructor( editor ) {
 
-	var input = document.createElement( 'input' );
-	input.type = 'file';
-	input.addEventListener( 'change', function ( event ) {
+		super();
 
-		loadFile( event.target.files[ 0 ] );
+		const scope = this;
 
-	} );
-	form.appendChild( input );
+		const form = document.createElement( 'form' );
 
-	var canvas = document.createElement( 'canvas' );
-	canvas.width = 32;
-	canvas.height = 16;
-	canvas.style.cursor = 'pointer';
-	canvas.style.marginRight = '5px';
-	canvas.style.border = '1px solid #888';
-	canvas.addEventListener( 'click', function ( event ) {
+		const input = document.createElement( 'input' );
+		input.type = 'file';
+		input.addEventListener( 'change', function ( event ) {
 
-		input.click();
+			loadFile( event.target.files[ 0 ] );
 
-	}, false );
-	canvas.addEventListener( 'drop', function ( event ) {
+		} );
+		form.appendChild( input );
 
-		event.preventDefault();
-		event.stopPropagation();
-		loadFile( event.dataTransfer.files[ 0 ] );
+		const canvas = document.createElement( 'canvas' );
+		canvas.width = 32;
+		canvas.height = 16;
+		canvas.style.cursor = 'pointer';
+		canvas.style.marginRight = '5px';
+		canvas.style.border = '1px solid #888';
+		canvas.addEventListener( 'click', function () {
 
-	}, false );
-	dom.appendChild( canvas );
+			input.click();
 
-	var name = document.createElement( 'input' );
-	name.disabled = true;
-	name.style.width = '64px';
-	name.style.border = '1px solid #ccc';
-	dom.appendChild( name );
+		} );
+		canvas.addEventListener( 'drop', function ( event ) {
 
-	function loadFile( file ) {
+			event.preventDefault();
+			event.stopPropagation();
+			loadFile( event.dataTransfer.files[ 0 ] );
 
-		if ( file.type.match( 'image.*' ) ) {
+		} );
+		this.dom.appendChild( canvas );
 
-			var reader = new FileReader();
+		async function loadFile( file ) {
 
-			if ( file.type === 'image/targa' ) {
+			const extension = file.name.split( '.' ).pop().toLowerCase();
+			const reader = new FileReader();
 
-				reader.addEventListener( 'load', function ( event ) {
+			const hash = `${file.lastModified}_${file.size}_${file.name}`;
 
-					var canvas = new THREE.TGALoader().parse( event.target.result );
+			function deliver( texture ) {
 
-					var texture = new THREE.CanvasTexture( canvas, mapping );
-					texture.sourceFile = file.name;
+				if ( ! cache.has( hash ) ) cache.set( hash, texture );
 
-					scope.setValue( texture );
+				const cached = cache.get( hash );
+				const clone = cached.clone();
+				clone.sourceFile = cached.sourceFile;
 
-					if ( scope.onChangeCallback ) scope.onChangeCallback();
+				scope.setValue( clone );
+
+				if ( scope.onChangeCallback ) scope.onChangeCallback( clone );
+
+			}
+
+			if ( cache.has( hash ) ) {
+
+				deliver( cache.get( hash ) );
+
+			} else if ( extension === 'hdr' || extension === 'pic' ) {
+
+				reader.addEventListener( 'load', async function ( event ) {
+
+					// assuming RGBE/Radiance HDR image format
+
+					const { HDRLoader } = await import( 'three/addons/loaders/HDRLoader.js' );
+
+					const loader = new HDRLoader();
+					loader.load( event.target.result, function ( hdrTexture ) {
+
+						hdrTexture.sourceFile = file.name;
+
+						deliver( hdrTexture );
+
+					} );
+
+				} );
+
+				reader.readAsDataURL( file );
+
+			} else if ( extension === 'tga' ) {
+
+				reader.addEventListener( 'load', async function ( event ) {
+
+					const { TGALoader } = await import( 'three/addons/loaders/TGALoader.js' );
+
+					const loader = new TGALoader();
+					loader.load( event.target.result, function ( texture ) {
+
+						texture.colorSpace = THREE.SRGBColorSpace;
+						texture.sourceFile = file.name;
+
+						deliver( texture );
+
+					} );
 
 				}, false );
 
-				reader.readAsArrayBuffer( file );
+				reader.readAsDataURL( file );
 
-			} else {
+			} else if ( extension === 'ktx2' ) {
 
-				reader.addEventListener( 'load', function ( event ) {
+				reader.addEventListener( 'load', async function ( event ) {
 
-					var image = document.createElement( 'img' );
-					image.addEventListener( 'load', function( event ) {
+					const { KTX2Loader } = await import( 'three/addons/loaders/KTX2Loader.js' );
 
-						var texture = new THREE.Texture( this, mapping );
+					const arrayBuffer = event.target.result;
+					const blobURL = URL.createObjectURL( new Blob( [ arrayBuffer ] ) );
+					const ktx2Loader = new KTX2Loader();
+					ktx2Loader.setTranscoderPath( '../../examples/jsm/libs/basis/' );
+					editor.signals.rendererDetectKTX2Support.dispatch( ktx2Loader );
+
+					ktx2Loader.load( blobURL, function ( texture ) {
+
+						texture.colorSpace = THREE.SRGBColorSpace;
 						texture.sourceFile = file.name;
 						texture.needsUpdate = true;
 
-						scope.setValue( texture );
+						deliver( texture );
+						ktx2Loader.dispose();
 
-						if ( scope.onChangeCallback ) scope.onChangeCallback();
+					} );
+
+				} );
+
+				reader.readAsArrayBuffer( file );
+
+			} else if ( extension === 'exr' ) {
+
+				reader.addEventListener( 'load', async function ( event ) {
+
+					const { EXRLoader } = await import( 'three/addons/loaders/EXRLoader.js' );
+
+					const arrayBuffer = event.target.result;
+					const blobURL = URL.createObjectURL( new Blob( [ arrayBuffer ] ) );
+					const exrLoader = new EXRLoader();
+
+					exrLoader.load( blobURL, function ( texture ) {
+
+						texture.sourceFile = file.name;
+						texture.needsUpdate = true;
+
+						deliver( texture );
+
+					} );
+
+				} );
+
+				reader.readAsArrayBuffer( file );
+
+			} else if ( file.type.match( 'image.*' ) ) {
+
+				reader.addEventListener( 'load', function ( event ) {
+
+					const image = document.createElement( 'img' );
+					image.addEventListener( 'load', function () {
+
+						const texture = new THREE.Texture( this );
+						texture.sourceFile = file.name;
+						texture.needsUpdate = true;
+
+						deliver( texture );
 
 					}, false );
 
@@ -95,373 +185,716 @@ UI.Texture = function ( mapping ) {
 
 			}
 
+			form.reset();
+
 		}
 
-		form.reset();
+		this.texture = null;
+		this.onChangeCallback = null;
 
 	}
 
-	this.dom = dom;
-	this.texture = null;
-	this.onChangeCallback = null;
+	getValue() {
 
-	return this;
+		return this.texture;
 
-};
+	}
 
-UI.Texture.prototype = Object.create( UI.Element.prototype );
-UI.Texture.prototype.constructor = UI.Texture;
+	setValue( texture ) {
 
-UI.Texture.prototype.getValue = function () {
+		const canvas = this.dom.children[ 0 ];
+		const context = canvas.getContext( '2d' );
 
-	return this.texture;
+		// Seems like context can be null if the canvas is not visible
+		if ( context ) {
 
-};
-
-UI.Texture.prototype.setValue = function ( texture ) {
-
-	var canvas = this.dom.children[ 0 ];
-	var name = this.dom.children[ 1 ];
-	var context = canvas.getContext( '2d' );
-
-	if ( texture !== null ) {
-
-		var image = texture.image;
-
-		if ( image !== undefined && image.width > 0 ) {
-
-			name.value = texture.sourceFile;
-
-			var scale = canvas.width / image.width;
-			context.drawImage( image, 0, 0, image.width * scale, image.height * scale );
-
-		} else {
-
-			name.value = texture.sourceFile + ' (error)';
+			// Always clear the context before set new texture, because new texture may has transparency
 			context.clearRect( 0, 0, canvas.width, canvas.height );
 
 		}
 
-	} else {
+		if ( texture !== null ) {
 
-		name.value = '';
+			const image = texture.image;
 
-		if ( context !== null ) {
+			if ( image !== undefined && image !== null && image.width > 0 ) {
 
-			// Seems like context can be null if the canvas is not visible
+				canvas.title = texture.sourceFile;
+				const scale = canvas.width / image.width;
 
-			context.clearRect( 0, 0, canvas.width, canvas.height );
+				if ( texture.isDataTexture || texture.isCompressedTexture ) {
 
-		}
+					const canvas2 = renderToCanvas( texture );
+					context.drawImage( canvas2, 0, 0, image.width * scale, image.height * scale );
 
-	}
+				} else {
 
-	this.texture = texture;
+					context.drawImage( image, 0, 0, image.width * scale, image.height * scale );
 
-};
+				}
 
-UI.Texture.prototype.onChange = function ( callback ) {
+			} else {
 
-	this.onChangeCallback = callback;
-
-	return this;
-
-};
-
-// Outliner
-
-UI.Outliner = function ( editor ) {
-
-	UI.Element.call( this );
-
-	var scope = this;
-
-	var dom = document.createElement( 'div' );
-	dom.className = 'Outliner';
-	dom.tabIndex = 0;	// keyup event is ignored without setting tabIndex
-
-	// hack
-	this.scene = editor.scene;
-
-	// Prevent native scroll behavior
-	dom.addEventListener( 'keydown', function ( event ) {
-
-		switch ( event.keyCode ) {
-			case 38: // up
-			case 40: // down
-				event.preventDefault();
-				event.stopPropagation();
-				break;
-		}
-
-	}, false );
-
-	// Keybindings to support arrow navigation
-	dom.addEventListener( 'keyup', function ( event ) {
-
-		switch ( event.keyCode ) {
-			case 38: // up
-				scope.selectIndex( scope.selectedIndex - 1 );
-				break;
-			case 40: // down
-				scope.selectIndex( scope.selectedIndex + 1 );
-				break;
-		}
-
-	}, false );
-
-	this.dom = dom;
-
-	this.options = [];
-	this.selectedIndex = - 1;
-	this.selectedValue = null;
-
-	return this;
-
-};
-
-UI.Outliner.prototype = Object.create( UI.Element.prototype );
-UI.Outliner.prototype.constructor = UI.Outliner;
-
-UI.Outliner.prototype.selectIndex = function ( index ) {
-
-	if ( index >= 0 && index < this.options.length ) {
-
-		this.setValue( this.options[ index ].value );
-
-		var changeEvent = document.createEvent( 'HTMLEvents' );
-		changeEvent.initEvent( 'change', true, true );
-		this.dom.dispatchEvent( changeEvent );
-
-	}
-
-};
-
-UI.Outliner.prototype.setOptions = function ( options ) {
-
-	var scope = this;
-
-	while ( scope.dom.children.length > 0 ) {
-
-		scope.dom.removeChild( scope.dom.firstChild );
-
-	}
-
-	function onClick() {
-
-		scope.setValue( this.value );
-
-		var changeEvent = document.createEvent( 'HTMLEvents' );
-		changeEvent.initEvent( 'change', true, true );
-		scope.dom.dispatchEvent( changeEvent );
-
-	}
-
-	// Drag
-
-	var currentDrag;
-
-	function onDrag( event ) {
-
-		currentDrag = this;
-
-	}
-
-	function onDragStart( event ) {
-
-		event.dataTransfer.setData( 'text', 'foo' );
-
-	}
-
-	function onDragOver( event ) {
-
-		if ( this === currentDrag ) return;
-
-		var area = event.offsetY / this.clientHeight;
-
-		if ( area < 0.25 ) {
-
-			this.className = 'option dragTop';
-
-		} else if ( area > 0.75 ) {
-
-			this.className = 'option dragBottom';
-
-		} else {
-
-			this.className = 'option drag';
-
-		}
-
-	}
-
-	function onDragLeave() {
-
-		if ( this === currentDrag ) return;
-
-		this.className = 'option';
-
-	}
-
-	function onDrop( event ) {
-
-		if ( this === currentDrag ) return;
-
-		this.className = 'option';
-
-		var scene = scope.scene;
-		var object = scene.getObjectById( currentDrag.value );
-
-		var area = event.offsetY / this.clientHeight;
-
-		if ( area < 0.25 ) {
-
-			var nextObject = scene.getObjectById( this.value );
-			moveObject( object, nextObject.parent, nextObject );
-
-		} else if ( area > 0.75 ) {
-
-			var nextObject = scene.getObjectById( this.nextSibling.value );
-			moveObject( object, nextObject.parent, nextObject );
-
-		} else {
-
-			var parentObject = scene.getObjectById( this.value );
-			moveObject( object, parentObject );
-
-		}
-
-	}
-
-	function moveObject( object, newParent, nextObject ) {
-
-		if ( nextObject === null ) nextObject = undefined;
-
-		var newParentIsChild = false;
-
-		object.traverse( function ( child ) {
-
-			if ( child === newParent ) newParentIsChild = true;
-
-		} );
-
-		if ( newParentIsChild ) return;
-
-		editor.execute( new MoveObjectCommand( object, newParent, nextObject ) );
-
-		var changeEvent = document.createEvent( 'HTMLEvents' );
-		changeEvent.initEvent( 'change', true, true );
-		scope.dom.dispatchEvent( changeEvent );
-
-	}
-
-	//
-
-	scope.options = [];
-
-	for ( var i = 0; i < options.length; i ++ ) {
-
-		var div = options[ i ];
-		div.className = 'option';
-		scope.dom.appendChild( div );
-
-		scope.options.push( div );
-
-		div.addEventListener( 'click', onClick, false );
-
-		if ( div.draggable === true ) {
-
-			div.addEventListener( 'drag', onDrag, false );
-			div.addEventListener( 'dragstart', onDragStart, false ); // Firefox needs this
-
-			div.addEventListener( 'dragover', onDragOver, false );
-			div.addEventListener( 'dragleave', onDragLeave, false );
-			div.addEventListener( 'drop', onDrop, false );
-
-		}
-
-
-	}
-
-	return scope;
-
-};
-
-UI.Outliner.prototype.getValue = function () {
-
-	return this.selectedValue;
-
-};
-
-UI.Outliner.prototype.setValue = function ( value ) {
-
-	for ( var i = 0; i < this.options.length; i ++ ) {
-
-		var element = this.options[ i ];
-
-		if ( element.value === value ) {
-
-			element.classList.add( 'active' );
-
-			// scroll into view
-
-			var y = element.offsetTop - this.dom.offsetTop;
-			var bottomY = y + element.offsetHeight;
-			var minScroll = bottomY - this.dom.offsetHeight;
-
-			if ( this.dom.scrollTop > y ) {
-
-				this.dom.scrollTop = y;
-
-			} else if ( this.dom.scrollTop < minScroll ) {
-
-				this.dom.scrollTop = minScroll;
+				canvas.title = texture.sourceFile + ' (error)';
 
 			}
 
-			this.selectedIndex = i;
-
 		} else {
 
-			element.classList.remove( 'active' );
+			canvas.title = 'empty';
+
+		}
+
+		this.texture = texture;
+
+	}
+
+	setColorSpace( colorSpace ) {
+
+		const texture = this.getValue();
+
+		if ( texture !== null ) {
+
+			texture.colorSpace = colorSpace;
+
+		}
+
+		return this;
+
+	}
+
+	onChange( callback ) {
+
+		this.onChangeCallback = callback;
+
+		return this;
+
+	}
+
+}
+
+class UIOutliner extends UIDiv {
+
+	constructor( editor ) {
+
+		super();
+
+		this.dom.className = 'Outliner';
+		this.dom.tabIndex = 0;	// keyup event is ignored without setting tabIndex
+
+		const scope = this;
+
+		// hack
+		this.scene = editor.scene;
+
+		// Prevent native scroll behavior
+		this.dom.addEventListener( 'keydown', function ( event ) {
+
+			switch ( event.code ) {
+
+				case 'ArrowUp':
+				case 'ArrowDown':
+					event.preventDefault();
+					event.stopPropagation();
+					break;
+
+			}
+
+		} );
+
+		// Keybindings to support arrow navigation
+		this.dom.addEventListener( 'keyup', function ( event ) {
+
+			switch ( event.code ) {
+
+				case 'ArrowUp':
+					scope.selectIndex( scope.selectedIndex - 1 );
+					break;
+				case 'ArrowDown':
+					scope.selectIndex( scope.selectedIndex + 1 );
+					break;
+
+			}
+
+		} );
+
+		this.editor = editor;
+
+		this.options = [];
+		this.selectedIndex = - 1;
+		this.selectedValue = null;
+
+	}
+
+	selectIndex( index ) {
+
+		if ( index >= 0 && index < this.options.length ) {
+
+			this.setValue( this.options[ index ].value );
+
+			const changeEvent = new Event( 'change', { bubbles: true, cancelable: true } );
+			this.dom.dispatchEvent( changeEvent );
 
 		}
 
 	}
 
-	this.selectedValue = value;
+	setOptions( options ) {
 
-	return this;
+		const scope = this;
 
-};
+		while ( scope.dom.children.length > 0 ) {
 
-UI.THREE = {};
+			scope.dom.removeChild( scope.dom.firstChild );
 
-UI.THREE.Boolean = function ( boolean, text ) {
+		}
 
-	UI.Span.call( this );
+		function onClick( event ) {
 
-	this.setMarginRight( '10px' );
+			scope.setValue( this.value );
 
-	this.checkbox = new UI.Checkbox( boolean );
-	this.text = new UI.Text( text ).setMarginLeft( '3px' );
+			const changeEvent = new Event( 'change', { bubbles: true, cancelable: true } );
+			changeEvent.shiftKey = event.shiftKey;
+			scope.dom.dispatchEvent( changeEvent );
 
-	this.add( this.checkbox );
-	this.add( this.text );
+		}
 
-};
+		// Drag
 
-UI.THREE.Boolean.prototype = Object.create( UI.Span.prototype );
-UI.THREE.Boolean.prototype.constructor = UI.THREE.Boolean;
+		let currentDrag;
 
-UI.THREE.Boolean.prototype.getValue = function () {
+		function onDrag() {
 
-	return this.checkbox.getValue();
+			currentDrag = this;
 
-};
+		}
 
-UI.THREE.Boolean.prototype.setValue = function ( value ) {
+		function onDragStart( event ) {
 
-	return this.checkbox.setValue( value );
+			event.dataTransfer.setData( 'text', 'foo' );
 
-};
+		}
+
+		function onDragOver( event ) {
+
+			if ( this === currentDrag ) return;
+
+			const area = event.offsetY / this.clientHeight;
+
+			if ( area < 0.25 ) {
+
+				this.className = 'option dragTop';
+
+			} else if ( area > 0.75 ) {
+
+				this.className = 'option dragBottom';
+
+			} else {
+
+				this.className = 'option drag';
+
+			}
+
+		}
+
+		function onDragLeave() {
+
+			if ( this === currentDrag ) return;
+
+			this.className = 'option';
+
+		}
+
+		function onDrop( event ) {
+
+			if ( this === currentDrag || currentDrag === undefined ) return;
+
+			this.className = 'option';
+
+			const scene = scope.scene;
+			const object = scene.getObjectById( currentDrag.value );
+
+			const area = event.offsetY / this.clientHeight;
+
+			if ( area < 0.25 ) {
+
+				const nextObject = scene.getObjectById( this.value );
+				moveObject( object, nextObject.parent, nextObject );
+
+			} else if ( area > 0.75 ) {
+
+				let nextObject, parent;
+
+				if ( this.nextSibling !== null ) {
+
+					nextObject = scene.getObjectById( this.nextSibling.value );
+					parent = nextObject.parent;
+
+				} else {
+
+					// end of list (no next object)
+
+					nextObject = null;
+					parent = scene.getObjectById( this.value ).parent;
+
+				}
+
+				moveObject( object, parent, nextObject );
+
+			} else {
+
+				const parentObject = scene.getObjectById( this.value );
+				moveObject( object, parentObject );
+
+			}
+
+		}
+
+		function moveObject( object, newParent, nextObject ) {
+
+			if ( nextObject === null ) nextObject = undefined;
+
+			let newParentIsChild = false;
+
+			object.traverse( function ( child ) {
+
+				if ( child === newParent ) newParentIsChild = true;
+
+			} );
+
+			if ( newParentIsChild ) return;
+
+			const editor = scope.editor;
+			editor.execute( new MoveObjectCommand( editor, object, newParent, nextObject ) );
+
+			const changeEvent = new Event( 'change', { bubbles: true, cancelable: true } );
+			scope.dom.dispatchEvent( changeEvent );
+
+		}
+
+		//
+
+		scope.options = [];
+
+		for ( let i = 0; i < options.length; i ++ ) {
+
+			const div = options[ i ];
+			div.className = 'option';
+			scope.dom.appendChild( div );
+
+			scope.options.push( div );
+
+			div.addEventListener( 'click', onClick );
+
+			if ( div.draggable === true ) {
+
+				div.addEventListener( 'drag', onDrag );
+				div.addEventListener( 'dragstart', onDragStart ); // Firefox needs this
+
+				div.addEventListener( 'dragover', onDragOver );
+				div.addEventListener( 'dragleave', onDragLeave );
+				div.addEventListener( 'drop', onDrop );
+
+			}
+
+
+		}
+
+		return scope;
+
+	}
+
+	getValue() {
+
+		return this.selectedValue;
+
+	}
+
+	setValue( value ) {
+
+		for ( let i = 0; i < this.options.length; i ++ ) {
+
+			const element = this.options[ i ];
+
+			if ( element.value === value ) {
+
+				element.classList.add( 'active' );
+
+				// scroll into view
+
+				const y = element.offsetTop - this.dom.offsetTop;
+				const bottomY = y + element.offsetHeight;
+				const minScroll = bottomY - this.dom.offsetHeight;
+
+				if ( this.dom.scrollTop > y ) {
+
+					this.dom.scrollTop = y;
+
+				} else if ( this.dom.scrollTop < minScroll ) {
+
+					this.dom.scrollTop = minScroll;
+
+				}
+
+				this.selectedIndex = i;
+
+			} else {
+
+				element.classList.remove( 'active' );
+
+			}
+
+		}
+
+		this.selectedValue = value;
+
+		return this;
+
+	}
+
+	setValues( values ) {
+
+		for ( let i = 0; i < this.options.length; i ++ ) {
+
+			const element = this.options[ i ];
+
+			if ( values.indexOf( element.value ) !== - 1 ) {
+
+				element.classList.add( 'active' );
+
+			} else {
+
+				element.classList.remove( 'active' );
+
+			}
+
+		}
+
+		this.selectedIndex = - 1;
+		this.selectedValue = null;
+
+		return this;
+
+	}
+
+}
+
+class UIPoints extends UISpan {
+
+	constructor() {
+
+		super();
+
+		this.dom.style.display = 'inline-block';
+
+		this.pointsList = new UIDiv();
+		this.add( this.pointsList );
+
+		this.pointsUI = [];
+		this.lastPointIdx = 0;
+		this.onChangeCallback = null;
+
+		this.update = () => { // bind lexical this
+
+			if ( this.onChangeCallback !== null ) {
+
+				this.onChangeCallback();
+
+			}
+
+		};
+
+	}
+
+	onChange( callback ) {
+
+		this.onChangeCallback = callback;
+
+		return this;
+
+	}
+
+	clear() {
+
+		for ( let i = this.pointsUI.length - 1; i >= 0; -- i ) {
+
+			this.deletePointRow( i, false );
+
+		}
+
+		this.lastPointIdx = 0;
+
+	}
+
+	deletePointRow( idx, needsUpdate = true ) {
+
+		if ( ! this.pointsUI[ idx ] ) return;
+
+		this.pointsList.remove( this.pointsUI[ idx ].row );
+
+		this.pointsUI.splice( idx, 1 );
+
+		if ( needsUpdate === true ) {
+
+			this.update();
+
+		}
+
+		this.lastPointIdx --;
+
+	}
+
+}
+
+class UIPoints2 extends UIPoints {
+
+	constructor() {
+
+		super();
+
+		const row = new UIRow();
+		this.add( row );
+
+		const addPointButton = new UIButton( '+' );
+		addPointButton.onClick( () => {
+
+			if ( this.pointsUI.length === 0 ) {
+
+				this.pointsList.add( this.createPointRow( 0, 0 ) );
+
+			} else {
+
+				const point = this.pointsUI[ this.pointsUI.length - 1 ];
+
+				this.pointsList.add( this.createPointRow( point.x.getValue(), point.y.getValue() ) );
+
+			}
+
+			this.update();
+
+		} );
+		row.add( addPointButton );
+
+	}
+
+	getValue() {
+
+		const points = [];
+
+		let count = 0;
+
+		for ( let i = 0; i < this.pointsUI.length; i ++ ) {
+
+			const pointUI = this.pointsUI[ i ];
+
+			if ( ! pointUI ) continue;
+
+			points.push( new THREE.Vector2( pointUI.x.getValue(), pointUI.y.getValue() ) );
+			++ count;
+			pointUI.lbl.setValue( count );
+
+		}
+
+		return points;
+
+	}
+
+	setValue( points, needsUpdate = true ) {
+
+		this.clear();
+
+		for ( let i = 0; i < points.length; i ++ ) {
+
+			const point = points[ i ];
+			this.pointsList.add( this.createPointRow( point.x, point.y ) );
+
+		}
+
+		if ( needsUpdate === true ) this.update();
+
+		return this;
+
+	}
+
+	createPointRow( x, y ) {
+
+		const pointRow = new UIDiv();
+		const lbl = new UIText( this.lastPointIdx + 1 ).setWidth( '20px' );
+		const txtX = new UINumber( x ).setWidth( '30px' ).onChange( this.update );
+		const txtY = new UINumber( y ).setWidth( '30px' ).onChange( this.update );
+
+		const scope = this;
+		const btn = new UIButton( '-' ).onClick( function () {
+
+			if ( scope.isEditing ) return;
+
+			const idx = scope.pointsList.getIndexOfChild( pointRow );
+			scope.deletePointRow( idx );
+
+		} );
+
+		this.pointsUI.push( { row: pointRow, lbl: lbl, x: txtX, y: txtY } );
+		++ this.lastPointIdx;
+		pointRow.add( lbl, txtX, txtY, btn );
+
+		return pointRow;
+
+	}
+
+}
+
+class UIPoints3 extends UIPoints {
+
+	constructor() {
+
+		super();
+
+		const row = new UIRow();
+		this.add( row );
+
+		const addPointButton = new UIButton( '+' );
+		addPointButton.onClick( () => {
+
+			if ( this.pointsUI.length === 0 ) {
+
+				this.pointsList.add( this.createPointRow( 0, 0, 0 ) );
+
+			} else {
+
+				const point = this.pointsUI[ this.pointsUI.length - 1 ];
+
+				this.pointsList.add( this.createPointRow( point.x.getValue(), point.y.getValue(), point.z.getValue() ) );
+
+			}
+
+			this.update();
+
+		} );
+		row.add( addPointButton );
+
+	}
+
+	getValue() {
+
+		const points = [];
+		let count = 0;
+
+		for ( let i = 0; i < this.pointsUI.length; i ++ ) {
+
+			const pointUI = this.pointsUI[ i ];
+
+			if ( ! pointUI ) continue;
+
+			points.push( new THREE.Vector3( pointUI.x.getValue(), pointUI.y.getValue(), pointUI.z.getValue() ) );
+			++ count;
+			pointUI.lbl.setValue( count );
+
+		}
+
+		return points;
+
+	}
+
+	setValue( points, needsUpdate = true ) {
+
+		this.clear();
+
+		for ( let i = 0; i < points.length; i ++ ) {
+
+			const point = points[ i ];
+			this.pointsList.add( this.createPointRow( point.x, point.y, point.z ) );
+
+		}
+
+		if ( needsUpdate === true ) this.update();
+
+		return this;
+
+	}
+
+	createPointRow( x, y, z ) {
+
+		const pointRow = new UIDiv();
+		const lbl = new UIText( this.lastPointIdx + 1 ).setWidth( '20px' );
+		const txtX = new UINumber( x ).setWidth( '30px' ).onChange( this.update );
+		const txtY = new UINumber( y ).setWidth( '30px' ).onChange( this.update );
+		const txtZ = new UINumber( z ).setWidth( '30px' ).onChange( this.update );
+
+		const scope = this;
+		const btn = new UIButton( '-' ).onClick( function () {
+
+			if ( scope.isEditing ) return;
+
+			const idx = scope.pointsList.getIndexOfChild( pointRow );
+			scope.deletePointRow( idx );
+
+		} );
+
+		this.pointsUI.push( { row: pointRow, lbl: lbl, x: txtX, y: txtY, z: txtZ } );
+		++ this.lastPointIdx;
+		pointRow.add( lbl, txtX, txtY, txtZ, btn );
+
+		return pointRow;
+
+	}
+
+}
+
+class UIBoolean extends UISpan {
+
+	constructor( boolean, text ) {
+
+		super();
+
+		this.setMarginRight( '4px' );
+
+		this.checkbox = new UICheckbox( boolean );
+		this.text = new UIText( text ).setMarginLeft( '3px' );
+
+		this.add( this.checkbox );
+		this.add( this.text );
+
+	}
+
+	getValue() {
+
+		return this.checkbox.getValue();
+
+	}
+
+	setValue( value ) {
+
+		return this.checkbox.setValue( value );
+
+	}
+
+}
+
+let renderer, fsQuad;
+
+function renderToCanvas( texture ) {
+
+	if ( renderer === undefined ) {
+
+		renderer = new THREE.WebGLRenderer();
+
+	}
+
+	if ( fsQuad === undefined ) {
+
+		fsQuad = new FullScreenQuad( new THREE.MeshBasicMaterial() );
+
+	}
+
+	const image = texture.image;
+
+	renderer.setSize( image.width, image.height, false );
+
+	fsQuad.material.map = texture;
+	fsQuad.render( renderer );
+
+	return renderer.domElement;
+
+}
+
+export { UITexture, UIOutliner, UIPoints, UIPoints2, UIPoints3, UIBoolean, renderToCanvas };

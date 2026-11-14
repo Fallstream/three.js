@@ -1,46 +1,77 @@
-(function () {
+import { CylinderGeometry } from '../../../../src/geometries/CylinderGeometry.js';
 
-	'use strict';
+import { BufferGeometry } from '../../../../src/core/BufferGeometry.js';
+import { runStdGeometryTests } from '../../utils/qunit-utils.js';
 
-	var parameters = {
-		radiusTop: 10,
-		radiusBottom: 20,
-		height: 30,
-		radialSegments: 20,
-		heightSegments: 30,
-		openEnded: true,
-		thetaStart: 0.1,
-		thetaLength: 2.0,
-	};
+export default QUnit.module( 'Geometries', () => {
 
-	var geometries;
+	QUnit.module( 'CylinderGeometry', ( hooks ) => {
 
-	QUnit.module( "Extras - Geometries - CylinderGeometry", {
+		let geometries = undefined;
+		hooks.beforeEach( function () {
 
-		beforeEach: function() {
+			const parameters = {
+				radiusTop: 10,
+				radiusBottom: 20,
+				height: 30,
+				radialSegments: 20,
+				heightSegments: 30,
+				openEnded: true,
+				thetaStart: 0.1,
+				thetaLength: 2.0,
+			};
 
 			geometries = [
-
-				new THREE.CylinderGeometry(),
-				new THREE.CylinderGeometry( parameters.radiusTop ),
-				new THREE.CylinderGeometry( parameters.radiusTop, parameters.radiusBottom ),
-				new THREE.CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height ),
-				new THREE.CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments ),
-				new THREE.CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments, parameters.heightSegments ),
-				new THREE.CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments, parameters.heightSegments, parameters.openEnded ),
-				new THREE.CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments, parameters.heightSegments, parameters.openEnded, parameters.thetaStart ),
-				new THREE.CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments, parameters.heightSegments, parameters.openEnded, parameters.thetaStart, parameters.thetaLength ),
-
+				new CylinderGeometry(),
+				new CylinderGeometry( parameters.radiusTop ),
+				new CylinderGeometry( parameters.radiusTop, parameters.radiusBottom ),
+				new CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height ),
+				new CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments ),
+				new CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments, parameters.heightSegments ),
+				new CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments, parameters.heightSegments, parameters.openEnded ),
+				new CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments, parameters.heightSegments, parameters.openEnded, parameters.thetaStart ),
+				new CylinderGeometry( parameters.radiusTop, parameters.radiusBottom, parameters.height, parameters.radialSegments, parameters.heightSegments, parameters.openEnded, parameters.thetaStart, parameters.thetaLength ),
 			];
 
-		}
+		} );
 
-	});
+		// INHERITANCE
+		QUnit.test( 'Extending', ( assert ) => {
 
-	QUnit.test( "standard geometry tests", function( assert ) {
+			const object = new CylinderGeometry();
+			assert.strictEqual(
+				object instanceof BufferGeometry, true,
+				'CylinderGeometry extends from BufferGeometry'
+			);
 
-		runStdGeometryTests( assert, geometries );
+		} );
 
-	});
+		// INSTANCING
+		QUnit.test( 'Instancing', ( assert ) => {
 
-})();
+			const object = new CylinderGeometry();
+			assert.ok( object, 'Can instantiate a CylinderGeometry.' );
+
+		} );
+
+		// PROPERTIES
+		QUnit.test( 'type', ( assert ) => {
+
+			const object = new CylinderGeometry();
+			assert.ok(
+				object.type === 'CylinderGeometry',
+				'CylinderGeometry.type should be CylinderGeometry'
+			);
+
+		} );
+
+		// OTHERS
+		QUnit.test( 'Standard geometry tests', ( assert ) => {
+
+			runStdGeometryTests( assert, geometries );
+
+		} );
+
+	} );
+
+} );
